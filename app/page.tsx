@@ -55,6 +55,15 @@ export default function MilapHubHome() {
       : `Creator ko ₹${amount - cutAmount} milega (platform fee ${cutPercentage}%).`
   }
 
+  // Updated tabs with "Bazaar"
+  const tabs = [
+    { id: 'home', label: 'Home' },
+    { id: 'reels', label: 'Reels' },
+    { id: 'matri', label: 'Matrimony' },
+    { id: 'bazar', label: 'Bazaar' },
+    { id: 'pages', label: 'Pages' }
+  ]
+
   return (
     <div data-theme={theme} style={{ background: 'var(--bg)', color: 'var(--ink)', minHeight: '100vh', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       <style jsx global>{`
@@ -115,7 +124,7 @@ export default function MilapHubHome() {
         .amts button[aria-pressed=true] { border-color: var(--brand); background: var(--soft); }
         .chat { position: fixed; right: 16px; bottom: 0; width: 300px; background: var(--card); border: 1px solid var(--line); border-radius: 12px 12px 0 0; z-index: 40; }
         .chat header { display: flex; padding: 10px 12px; border-radius: 12px 12px 0 0; font-weight: 700; position: static; }
-        .msgs { height: 200px; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .msgs { height: 200px; overflow: auto; padding: 10px; display: flex; flexDirection: column; gap: 6px; }
         .m { max-width: 80%; padding: 7px 12px; border-radius: 14px; background: var(--soft); }
         .m.me { align-self: flex-end; background: var(--brand); color: var(--brand-ink); }
         @media(max-width:1100px){.side-l{display:none}}
@@ -126,9 +135,9 @@ export default function MilapHubHome() {
       <header>
         <div className="logo"><i aria-hidden="true"></i>MilapHub</div>
         <nav aria-label="Main">
-          {['home', 'reels', 'matri', 'market', 'pages'].map(tab => (
-            <button key={tab} data-v={tab} aria-current={activeTab === tab} onClick={() => setActiveTab(tab)}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          {tabs.map(tab => (
+            <button key={tab.id} data-v={tab.id} aria-current={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>
+              {tab.label}
             </button>
           ))}
         </nav>
@@ -212,7 +221,7 @@ export default function MilapHubHome() {
 
           {activeTab !== 'home' && (
             <div className="card" style={{ textAlign: 'center', padding: '50px 20px' }}>
-              <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section</h2>
+              <h2>{tabs.find(t => t.id === activeTab)?.label} Section</h2>
               <p style={{ color: 'var(--mute)' }}>This module is active under the architectural roadmap.</p>
             </div>
           )}
