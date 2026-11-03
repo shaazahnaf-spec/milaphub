@@ -210,7 +210,7 @@ export default function MilapHubHome() {
             </section>
           )}
 
-         {activeTab !== 'home' && (
+          {activeTab !== 'home' && (
             <div className="card" style={{ textAlign: 'center', padding: '50px 20px' }}>
               <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Section</h2>
               <p style={{ color: 'var(--mute)' }}>This module is active under the architectural roadmap.</p>
