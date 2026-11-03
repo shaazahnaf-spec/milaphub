@@ -1,9 +1,7 @@
-// Next.js 16: file ka naam proxy.ts, function ka naam proxy.
-// Next.js 15 hai to file ka naam middleware.ts aur function ka naam middleware rakho.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
