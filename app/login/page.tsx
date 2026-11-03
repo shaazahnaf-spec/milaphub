@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '../lib/supabase/client'
 
 const AREAS = ['Banjara Hills','Jubilee Hills','Madhapur','Gachibowli','Kukatpally','Ameerpet','Secunderabad',
   'Charminar / Old City','Tolichowki','Mehdipatnam','LB Nagar','Dilsukhnagar','Uppal','Attapur','Other']
