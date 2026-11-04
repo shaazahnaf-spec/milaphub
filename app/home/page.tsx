@@ -232,7 +232,7 @@ export default function HomePage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // Ads: 4 slots (left_1, left_2, right_1, right_2), apne city ya poore India ke liye
+  // Ads: 3 slots (left_1, right_1, right_2), apne city ya poore India ke liye
   useEffect(() => {
     if (!profile?.city_id) return
     supabase
@@ -242,7 +242,7 @@ export default function HomePage() {
       .then(({ data }) => {
         const rows = (data ?? []) as Ad[]
         const map: Record<string, Ad> = {}
-        for (const slot of ['left_1', 'left_2', 'right_1', 'right_2']) {
+        for (const slot of ['left_1', 'right_1', 'right_2']) {
           const list = rows.filter(r => r.slot === slot)
           if (list.length) map[slot] = list[Math.floor(Math.random() * list.length)]
         }
@@ -444,33 +444,34 @@ export default function HomePage() {
       <div className="mx-auto grid max-w-[1280px] gap-6 px-4 py-6 lg:grid-cols-[250px_minmax(0,1fr)_300px]">
         {/* LEFT SIDEBAR */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-1 overflow-y-auto">
-            <div className="mb-2 flex items-center gap-3 rounded-xl p-2">
-              <Avatar name={name} />
-              <div className="min-w-0">
-                <p className="truncate font-bold leading-tight">{name}</p>
-                <p className="truncate text-xs text-[#5d7776]">{cityName}{city ? `, ${city.state}` : ''}</p>
+          <div className="sticky top-24 flex h-[calc(100vh-7rem)] flex-col">
+            <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+              <div className="mb-1 flex items-center gap-3 rounded-xl p-2">
+                <Avatar name={name} size={36} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold leading-tight">{name}</p>
+                  <p className="truncate text-xs text-[#5d7776]">{cityName}{city ? `, ${city.state}` : ''}</p>
+                </div>
               </div>
+              {[
+                ['Fr', 'Friends'], ['Pg', 'Pages'], ['Gr', 'Groups'], ['Sv', 'Saved posts'],
+                ['Mt', 'Matrimony dashboard'], ['₹', 'Tips and payouts'], ['St', 'Settings'],
+              ].map(([ic, label]) => (
+                <button key={label} className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]">
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e3efee] text-[11px] font-bold text-[#0f5c5a]">{ic}</span>
+                  {label}
+                </button>
+              ))}
             </div>
-            {[
-              ['Fr', 'Friends'], ['Pg', 'Pages'], ['Gr', 'Groups'], ['Sv', 'Saved posts'],
-              ['Mt', 'Matrimony dashboard'], ['₹', 'Tips and payouts'], ['St', 'Settings'],
-            ].map(([ic, label]) => (
-              <button key={label} className="flex w-full items-center gap-3 rounded-xl p-2 text-left text-sm font-semibold hover:bg-[#f3f7f6]">
-                <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#e3efee] text-xs font-bold text-[#0f5c5a]">{ic}</span>
-                {label}
-              </button>
-            ))}
-            <div className="space-y-4 pt-4">
-              <AdSlot ad={adMap.left_1} cityName={cityName} />
-              <AdSlot ad={adMap.left_2} cityName={cityName} />
+            <div className="shrink-0 space-y-2 pt-3">
+              <AdSlot ad={adMap.left_1} cityName={cityName} imgClass="aspect-[16/10]" boxClass="min-h-[200px]" />
+              <p className="px-1 text-xs text-[#5d7776]">
+                <Link href="/privacy" className="underline">Privacy</Link>{' '}
+                <Link href="/terms" className="underline">Terms</Link>{' '}
+                <Link href="/refund" className="underline">Refund</Link>
+                {' · '}© 2026 MilapHub
+              </p>
             </div>
-            <p className="px-2 pt-6 text-xs text-[#5d7776]">
-              <Link href="/privacy" className="underline">Privacy</Link>{' '}
-              <Link href="/terms" className="underline">Terms</Link>{' '}
-              <Link href="/refund" className="underline">Refund</Link>
-              <br />© 2026 MilapHub
-            </p>
           </div>
         </aside>
 
@@ -687,24 +688,21 @@ export default function HomePage() {
 
         {/* RIGHT SIDEBAR */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto">
-            <AdSlot ad={adMap.right_1} cityName={cityName} />
-            <section className="rounded-2xl border border-[#e5eceb] p-4">
-              <h3 className="mb-2 text-sm font-extrabold">Friend requests</h3>
-              <p className="text-sm text-[#5d7776]">No pending requests.</p>
-            </section>
-            <section className="rounded-2xl border border-[#e5eceb] p-4">
-              <h3 className="mb-2 text-sm font-extrabold">Friends online</h3>
-              <p className="text-sm text-[#5d7776]">Friends you add will show up here. Chat is available only between friends.</p>
-            </section>
-            <section className="rounded-2xl border border-[#e5eceb] p-4">
-              <h3 className="mb-2 text-sm font-extrabold">Emergency alerts</h3>
-              <div className="border-l-4 border-[#c0392b] pl-3">
-                <p className="text-sm font-bold">O-negative blood needed</p>
-                <p className="text-xs text-[#5d7776]">Gandhi Hospital · Verified</p>
-              </div>
-            </section>
-            <AdSlot ad={adMap.right_2} cityName={cityName} />
+          <div className="sticky top-24 flex h-[calc(100vh-7rem)] flex-col">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin]">
+              <section className="rounded-2xl border border-[#e5eceb] p-3">
+                <h3 className="mb-1 text-sm font-extrabold">Friend requests</h3>
+                <p className="text-sm text-[#5d7776]">No pending requests.</p>
+              </section>
+              <section className="rounded-2xl border border-[#e5eceb] p-3">
+                <h3 className="mb-1 text-sm font-extrabold">Friends online</h3>
+                <p className="text-sm text-[#5d7776]">Friends you add will show up here.</p>
+              </section>
+            </div>
+            <div className="shrink-0 space-y-3 pt-3">
+              <AdSlot ad={adMap.right_1} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
+              <AdSlot ad={adMap.right_2} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
+            </div>
           </div>
         </aside>
       </div>
