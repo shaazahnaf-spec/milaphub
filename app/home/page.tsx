@@ -12,11 +12,13 @@ type Profile = {
   username: string | null
   city_id: number | null
   is_verified_ngo: boolean
+  role: string
   cities: City | City[] | null
 }
 type Author = { full_name: string | null; username: string | null }
 type Post = {
   id: string
+  author_id: string
   body: string | null
   category: string
   allow_tips: boolean
@@ -65,6 +67,7 @@ function Icon({ name, size = 24 }: { name: string; size?: number }) {
     Grid: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
     Bell: (<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>),
     Logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
+    Trash: (<><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>),
     Video: (<><path d="m22 8-6 4 6 4V8z" /><rect x="2" y="6" width="14" height="12" rx="2" /></>),
     Photo: (<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></>),
     Smile: (<><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></>),
@@ -154,7 +157,7 @@ export default function HomePage() {
       if (!user) { router.replace('/login'); return }
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, username, city_id, is_verified_ngo, cities(name, state)')
+        .select('id, full_name, username, city_id, is_verified_ngo, role, cities(name, state)')
         .eq('id', user.id)
         .maybeSingle()
       if (!data?.username || !data.city_id) { router.replace('/onboarding'); return }
@@ -171,7 +174,7 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, body, category, allow_tips, status, created_at, profiles(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, profiles(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -202,8 +205,16 @@ export default function HomePage() {
     if (error) return setError(error.message)
     setBody('')
     if (taRef.current) taRef.current.style.height = 'auto'
-    setMsg('Your post was sent for admin approval. It will be visible to everyone once approved.')
     loadPosts()
+  }
+
+  async function deletePost(id: string) {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return
+    setError('')
+    const { data, error } = await supabase.from('posts').delete().eq('id', id).select('id')
+    if (error) return setError(error.message)
+    if (!data || data.length === 0) return setError('You are not allowed to delete this post.')
+    setPosts(list => list.filter(p => p.id !== id))
   }
 
   async function signOut() {
@@ -490,22 +501,23 @@ export default function HomePage() {
                         <Avatar name={author} />
                         <div className="min-w-0">
                           <p className="truncate font-bold leading-tight">{author}</p>
-                          <p className="text-xs text-[#5d7776]">
-                            {anon ? '' : `@${a?.username ?? 'user'} · `}
-                            {new Date(p.created_at).toLocaleDateString('en-IN')}
-                          </p>
+                          {!anon && <p className="text-xs text-[#5d7776]">@{a?.username ?? 'user'}</p>}
                         </div>
                         <div className="ml-auto flex items-center gap-2">
-                          {p.status === 'pending' && (
-                            <span className="rounded-full bg-[#fff4d6] px-3 py-1 text-xs font-bold text-[#7a5600]">Pending approval</span>
-                          )}
-                          {p.status === 'rejected' && (
-                            <span className="rounded-full bg-[#fdecea] px-3 py-1 text-xs font-bold text-[#c0392b]">Rejected</span>
-                          )}
                           {p.category !== 'general' && (
                             <span className="rounded-full bg-[#e3efee] px-3 py-1 text-xs font-bold text-[#0f5c5a]">
                               {CATEGORIES.find(c => c.id === p.category)?.label ?? p.category}
                             </span>
+                          )}
+                          {(p.author_id === profile.id || profile.role === 'admin') && (
+                            <button
+                              onClick={() => deletePost(p.id)}
+                              title="Delete post"
+                              aria-label="Delete post"
+                              className="grid h-8 w-8 place-items-center rounded-full text-[#5d7776] hover:bg-[#fdecea] hover:text-[#c0392b]"
+                            >
+                              <Icon name="Trash" size={16} />
+                            </button>
                           )}
                         </div>
                       </div>
@@ -513,7 +525,7 @@ export default function HomePage() {
                       <div className="mt-3 flex items-center gap-2 border-t border-[#eef3f2] pt-2 text-sm font-semibold text-[#5d7776]">
                         <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Like</button>
                         <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Comment</button>
-                        {p.allow_tips && p.status === 'approved' && (
+                        {p.allow_tips && (
                           <button
                             onClick={() => setMsg('Tips are coming soon. Razorpay is not connected yet.')}
                             className="flex-1 rounded-lg bg-[#f0a500] py-2 font-bold text-[#3a2900] hover:brightness-105"
