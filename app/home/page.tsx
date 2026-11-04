@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import AdSlot, { type Ad } from '@/components/AdSlot'
 
 type City = { name: string; state: string }
 type Profile = {
@@ -24,6 +25,7 @@ type Post = {
   allow_tips: boolean
   status: string
   created_at: string
+  edited_at: string | null
   profiles: Author | Author[] | null
 }
 
@@ -31,6 +33,18 @@ const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
 const EMOJIS = ['😊', '😂', '❤️', '🙏', '👍', '🎉', '😍', '😢', '🔥', '🍲', '🌹', '✨']
+
+const REASONS = [
+  { id: 'spam', label: 'Spam or scam' },
+  { id: 'abuse', label: 'Abuse or harassment' },
+  { id: 'hate', label: 'Hate speech' },
+  { id: 'nudity', label: 'Nudity or sexual content' },
+  { id: 'fake', label: 'False information' },
+  { id: 'other', label: 'Something else' },
+]
+
+const MENU_ITEM = 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]'
+const MENU_ITEM_RED = 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]'
 
 const TABS = ['Home', 'Reels', 'Matrimony', 'Bazaar', 'Pages']
 
@@ -68,6 +82,9 @@ function Icon({ name, size = 24 }: { name: string; size?: number }) {
     Bell: (<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>),
     Logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
     Trash: (<><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></>),
+    Dots: (<><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>),
+    Edit: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>),
+    Flag: (<><path d="M4 22V4" /><path d="M4 4h13l-2 4 2 4H4" /></>),
     Video: (<><path d="m22 8-6 4 6 4V8z" /><rect x="2" y="6" width="14" height="12" rx="2" /></>),
     Photo: (<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></>),
     Smile: (<><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></>),
@@ -150,6 +167,35 @@ export default function HomePage() {
   useOutside(profileRef, profileOpen, setProfileOpen)
   useOutside(emojiRef, emojiOpen, setEmojiOpen)
 
+  const [postMenu, setPostMenu] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [reportId, setReportId] = useState<string | null>(null)
+  const [reason, setReason] = useState('spam')
+  const [details, setDetails] = useState('')
+  const [reporting, setReporting] = useState(false)
+  const [toast, setToast] = useState('')
+  const [adMap, setAdMap] = useState<Record<string, Ad>>({})
+
+  function notify(t: string) {
+    setToast(t)
+    setTimeout(() => setToast(''), 3500)
+  }
+
+  useEffect(() => {
+    if (!postMenu) return
+    function onDown(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest('[data-postmenu]')) setPostMenu(null)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setPostMenu(null) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [postMenu])
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -174,7 +220,7 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, author_id, body, category, allow_tips, status, created_at, profiles(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, profiles(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -185,6 +231,24 @@ export default function HomePage() {
   }, [supabase, profile, category])
 
   useEffect(() => { loadPosts() }, [loadPosts])
+
+  // Ads: 4 slots (left_1, left_2, right_1, right_2), apne city ya poore India ke liye
+  useEffect(() => {
+    if (!profile?.city_id) return
+    supabase
+      .from('ads')
+      .select('id, slot, title, body, image_url, link_url, advertiser')
+      .or(`city_id.is.null,city_id.eq.${profile.city_id}`)
+      .then(({ data }) => {
+        const rows = (data ?? []) as Ad[]
+        const map: Record<string, Ad> = {}
+        for (const slot of ['left_1', 'left_2', 'right_1', 'right_2']) {
+          const list = rows.filter(r => r.slot === slot)
+          if (list.length) map[slot] = list[Math.floor(Math.random() * list.length)]
+        }
+        setAdMap(map)
+      })
+  }, [supabase, profile])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -209,12 +273,38 @@ export default function HomePage() {
   }
 
   async function deletePost(id: string) {
+    setPostMenu(null)
     if (!window.confirm('Delete this post? This cannot be undone.')) return
-    setError('')
     const { data, error } = await supabase.from('posts').delete().eq('id', id).select('id')
-    if (error) return setError(error.message)
-    if (!data || data.length === 0) return setError('You are not allowed to delete this post.')
+    if (error) return notify(error.message)
+    if (!data || data.length === 0) return notify('You are not allowed to delete this post.')
     setPosts(list => list.filter(p => p.id !== id))
+    notify('Post deleted.')
+  }
+
+  async function saveEdit(id: string) {
+    const text = editText.trim()
+    if (!text) return notify('A post cannot be empty.')
+    const { data, error } = await supabase
+      .from('posts').update({ body: text }).eq('id', id).select('id, body, edited_at')
+    if (error) return notify(error.message)
+    if (!data || data.length === 0) return notify('You are not allowed to edit this post.')
+    setPosts(list => list.map(p =>
+      p.id === id ? { ...p, body: data[0].body as string, edited_at: data[0].edited_at as string | null } : p
+    ))
+    setEditingId(null)
+  }
+
+  async function submitReport() {
+    if (!reportId || !profile) return
+    setReporting(true)
+    const { error } = await supabase.from('post_reports').insert({
+      post_id: reportId, reporter_id: profile.id, reason, details: details.trim() || null,
+    })
+    setReporting(false)
+    if (error) return notify(error.code === '23505' ? 'You already reported this post.' : error.message)
+    setReportId(null); setReason('spam'); setDetails('')
+    notify('Thanks. Our team will review this post.')
   }
 
   async function signOut() {
@@ -354,7 +444,7 @@ export default function HomePage() {
       <div className="mx-auto grid max-w-[1280px] gap-6 px-4 py-6 lg:grid-cols-[250px_minmax(0,1fr)_300px]">
         {/* LEFT SIDEBAR */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 space-y-1">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-1 overflow-y-auto">
             <div className="mb-2 flex items-center gap-3 rounded-xl p-2">
               <Avatar name={name} />
               <div className="min-w-0">
@@ -371,6 +461,10 @@ export default function HomePage() {
                 {label}
               </button>
             ))}
+            <div className="space-y-4 pt-4">
+              <AdSlot ad={adMap.left_1} cityName={cityName} />
+              <AdSlot ad={adMap.left_2} cityName={cityName} />
+            </div>
             <p className="px-2 pt-6 text-xs text-[#5d7776]">
               <Link href="/privacy" className="underline">Privacy</Link>{' '}
               <Link href="/terms" className="underline">Terms</Link>{' '}
@@ -495,13 +589,19 @@ export default function HomePage() {
                   const a = one(p.profiles)
                   const anon = p.category === 'confession'
                   const author = anon ? 'Anonymous' : a?.full_name ?? 'MilapHub user'
+                  const mine = p.author_id === profile.id
+                  const isAdmin = profile.role === 'admin'
                   return (
                     <article key={p.id} className="rounded-2xl border border-[#e5eceb] bg-white p-4 shadow-sm">
                       <div className="flex items-center gap-3">
                         <Avatar name={author} />
                         <div className="min-w-0">
                           <p className="truncate font-bold leading-tight">{author}</p>
-                          {!anon && <p className="text-xs text-[#5d7776]">@{a?.username ?? 'user'}</p>}
+                          {(!anon || p.edited_at) && (
+                            <p className="text-xs text-[#5d7776]">
+                              {[!anon ? `@${a?.username ?? 'user'}` : '', p.edited_at ? 'Edited' : ''].filter(Boolean).join(' · ')}
+                            </p>
+                          )}
                         </div>
                         <div className="ml-auto flex items-center gap-2">
                           {p.category !== 'general' && (
@@ -509,19 +609,62 @@ export default function HomePage() {
                               {CATEGORIES.find(c => c.id === p.category)?.label ?? p.category}
                             </span>
                           )}
-                          {(p.author_id === profile.id || profile.role === 'admin') && (
+                          <div className="relative" data-postmenu>
                             <button
-                              onClick={() => deletePost(p.id)}
-                              title="Delete post"
-                              aria-label="Delete post"
-                              className="grid h-8 w-8 place-items-center rounded-full text-[#5d7776] hover:bg-[#fdecea] hover:text-[#c0392b]"
+                              onClick={() => setPostMenu(m => (m === p.id ? null : p.id))}
+                              aria-haspopup="menu"
+                              aria-expanded={postMenu === p.id}
+                              aria-label="Post options"
+                              title="More options"
+                              className="grid h-9 w-9 place-items-center rounded-full text-[#5d7776] hover:bg-[#f3f7f6]"
                             >
-                              <Icon name="Trash" size={16} />
+                              <Icon name="Dots" size={20} />
                             </button>
-                          )}
+                            {postMenu === p.id && (
+                              <div role="menu" className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
+                                {mine && (
+                                  <button role="menuitem" className={MENU_ITEM}
+                                    onClick={() => { setEditingId(p.id); setEditText(p.body ?? ''); setPostMenu(null) }}>
+                                    <Icon name="Edit" size={18} />Edit post
+                                  </button>
+                                )}
+                                {!mine && (
+                                  <button role="menuitem" className={MENU_ITEM}
+                                    onClick={() => { setReportId(p.id); setPostMenu(null) }}>
+                                    <Icon name="Flag" size={18} />Report post
+                                  </button>
+                                )}
+                                {(mine || isAdmin) && (
+                                  <>
+                                    <div className="my-1 border-t border-[#eef3f2]" />
+                                    <button role="menuitem" className={MENU_ITEM_RED} onClick={() => deletePost(p.id)}>
+                                      <Icon name="Trash" size={18} />Delete post
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{p.body}</p>
+                      {editingId === p.id ? (
+                        <div className="mt-3 space-y-2">
+                          <textarea
+                            value={editText}
+                            onChange={e => setEditText(e.target.value)}
+                            maxLength={2000}
+                            rows={3}
+                            aria-label="Edit post"
+                            className="w-full resize-y rounded-xl bg-[#f3f7f6] px-4 py-3 text-[15px] outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditingId(null)} className="rounded-full px-4 py-1.5 text-sm font-semibold hover:bg-[#f3f7f6]">Cancel</button>
+                            <button type="button" onClick={() => saveEdit(p.id)} className="rounded-full bg-[#0f5c5a] px-5 py-1.5 text-sm font-bold text-white hover:bg-[#0b4846]">Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{p.body}</p>
+                      )}
                       <div className="mt-3 flex items-center gap-2 border-t border-[#eef3f2] pt-2 text-sm font-semibold text-[#5d7776]">
                         <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Like</button>
                         <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Comment</button>
@@ -544,7 +687,8 @@ export default function HomePage() {
 
         {/* RIGHT SIDEBAR */}
         <aside className="hidden lg:block">
-          <div className="sticky top-24 space-y-4">
+          <div className="sticky top-24 max-h-[calc(100vh-7rem)] space-y-4 overflow-y-auto">
+            <AdSlot ad={adMap.right_1} cityName={cityName} />
             <section className="rounded-2xl border border-[#e5eceb] p-4">
               <h3 className="mb-2 text-sm font-extrabold">Friend requests</h3>
               <p className="text-sm text-[#5d7776]">No pending requests.</p>
@@ -560,9 +704,50 @@ export default function HomePage() {
                 <p className="text-xs text-[#5d7776]">Gandhi Hospital · Verified</p>
               </div>
             </section>
+            <AdSlot ad={adMap.right_2} cityName={cityName} />
           </div>
         </aside>
       </div>
+
+      {reportId && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+          onMouseDown={e => { if (e.target === e.currentTarget) setReportId(null) }}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="report-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <h2 id="report-title" className="text-lg font-extrabold">Report this post</h2>
+            <p className="mt-1 text-sm text-[#5d7776]">Why are you reporting it?</p>
+            <div className="mt-3 space-y-1">
+              {REASONS.map(r => (
+                <label key={r.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-sm font-medium hover:bg-[#f3f7f6]">
+                  <input type="radio" name="reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="h-4 w-4 accent-[#0f5c5a]" />
+                  {r.label}
+                </label>
+              ))}
+            </div>
+            <textarea
+              value={details}
+              onChange={e => setDetails(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="More details (optional)"
+              className="mt-3 w-full resize-none rounded-xl bg-[#f3f7f6] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setReportId(null)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Cancel</button>
+              <button type="button" disabled={reporting} onClick={submitReport} className="rounded-full bg-[#0f5c5a] px-5 py-2 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50">
+                {reporting ? 'Sending...' : 'Submit report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#12302f] px-5 py-3 text-sm font-semibold text-white shadow-xl">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
