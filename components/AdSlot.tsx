@@ -13,7 +13,9 @@ export type Ad = {
   advertiser: string | null
 }
 
-export default function AdSlot({ ad, cityName }: { ad?: Ad; cityName: string }) {
+type Props = { ad?: Ad; cityName: string; imgClass?: string; boxClass?: string }
+
+export default function AdSlot({ ad, cityName, imgClass = 'aspect-[4/3]', boxClass = 'min-h-[140px]' }: Props) {
   const [supabase] = useState(() => createClient())
   const adId = ad?.id
 
@@ -26,7 +28,7 @@ export default function AdSlot({ ad, cityName }: { ad?: Ad; cityName: string }) 
     return (
       <a
         href="mailto:ads@milaphub.com?subject=Advertise%20on%20MilapHub"
-        className="block rounded-2xl border border-dashed border-[#c9d9d7] p-4 text-center transition hover:bg-[#f3f7f6]"
+        className={`flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#c9d9d7] p-4 text-center transition hover:bg-[#f3f7f6] ${boxClass}`}
       >
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#5d7776]">Advertise here</p>
         <p className="mt-1 text-sm font-bold">Reach people in {cityName}</p>
@@ -45,7 +47,7 @@ export default function AdSlot({ ad, cityName }: { ad?: Ad; cityName: string }) 
     >
       {ad.image_url && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={ad.image_url} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
+        <img src={ad.image_url} alt="" loading="lazy" className={`w-full object-cover ${imgClass}`} />
       )}
       <div className="p-3">
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#5d7776]">Sponsored</p>
