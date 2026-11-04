@@ -28,6 +28,8 @@ type Post = {
 const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
+const EMOJIS = ['😊', '😂', '❤️', '🙏', '👍', '🎉', '😍', '😢', '🔥', '🍲', '🌹', '✨']
+
 const TABS = ['Home', 'Reels', 'Matrimony', 'Bazaar', 'Pages']
 
 const CATEGORIES = [
@@ -63,6 +65,9 @@ function Icon({ name, size = 24 }: { name: string; size?: number }) {
     Grid: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
     Bell: (<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>),
     Logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
+    Video: (<><path d="m22 8-6 4 6 4V8z" /><rect x="2" y="6" width="14" height="12" rx="2" /></>),
+    Photo: (<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></>),
+    Smile: (<><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></>),
   }
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -135,7 +140,12 @@ export default function HomePage() {
   const profileRef = useRef<HTMLDivElement>(null)
 
   useOutside(menuRef, menuOpen, setMenuOpen)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const emojiRef = useRef<HTMLDivElement>(null)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+
   useOutside(profileRef, profileOpen, setProfileOpen)
+  useOutside(emojiRef, emojiOpen, setEmojiOpen)
 
   useEffect(() => {
     let cancelled = false
@@ -191,6 +201,7 @@ export default function HomePage() {
     setPosting(false)
     if (error) return setError(error.message)
     setBody('')
+    if (taRef.current) taRef.current.style.height = 'auto'
     setMsg('Your post was sent for admin approval. It will be visible to everyone once approved.')
     loadPosts()
   }
@@ -246,6 +257,45 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center justify-end gap-3">
+            {/* Categories (grid) menu */}
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Categories"
+                title="Categories"
+                onClick={() => setMenuOpen(o => !o)}
+                className={`relative grid h-10 w-10 place-items-center rounded-full hover:bg-[#e3efee] ${menuOpen ? 'bg-[#e3efee] text-[#0f5c5a]' : 'bg-[#f3f7f6]'}`}
+              >
+                <Icon name="Grid" size={18} />
+                {category !== 'all' && (
+                  <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#f0a500]" />
+                )}
+              </button>
+              {menuOpen && (
+                <ul role="menu" className="absolute right-0 z-40 mt-2 w-72 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
+                  <li role="none" className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-[#5d7776]">Categories</li>
+                  {CATEGORIES.map(c => (
+                    <li key={c.id} role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setCategory(c.id); setMenuOpen(false) }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f7f6] ${category === c.id ? 'bg-[#e3efee]' : ''}`}
+                      >
+                        <span>
+                          <span className="block text-sm font-bold">{c.label}</span>
+                          <span className="block text-xs text-[#5d7776]">{c.hint}</span>
+                        </span>
+                        {category === c.id && <span className="font-bold text-[#0f5c5a]">✓</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <button aria-label="Notifications" title="Notifications"
               className="grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
               <Icon name="Bell" size={18} />
@@ -351,73 +401,75 @@ export default function HomePage() {
               </section>
 
               {/* Composer */}
-              <form onSubmit={submit} className="rounded-2xl border border-[#e5eceb] bg-white p-4 shadow-sm">
-                <div className="flex gap-3">
+              <form onSubmit={submit} className="rounded-2xl border border-[#e5eceb] bg-white p-3 shadow-sm sm:p-4">
+                <div className="flex items-start gap-3">
                   <Avatar name={name} />
                   <textarea
+                    ref={taRef}
                     value={body}
-                    onChange={e => setBody(e.target.value)}
+                    onChange={e => {
+                      setBody(e.target.value)
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 240) + 'px'
+                    }}
                     maxLength={2000}
-                    rows={2}
+                    rows={1}
+                    aria-label="Write a post"
                     placeholder={`What's on your mind, ${name.split(' ')[0]}?`}
-                    className="w-full resize-none rounded-xl bg-[#f3f7f6] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                    className="min-h-[44px] w-full resize-none rounded-3xl bg-[#f3f7f6] px-5 py-3 text-[15px] leading-snug outline-none placeholder:text-[#5d7776] focus:ring-2 focus:ring-[#0f5c5a]/30"
                   />
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#eef3f2] pt-3">
-                  <span className="rounded-full bg-[#e3efee] px-3 py-1.5 text-sm font-semibold text-[#0f5c5a]">
-                    {current.label}
-                  </span>
-
-                  {category !== 'confession' && (
-                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-                      <input type="checkbox" checked={allowTips} onChange={e => setAllowTips(e.target.checked)} className="h-4 w-4 accent-[#0f5c5a]" />
-                      {category === 'campaign' ? 'Allow donations' : 'Allow tips'}
-                    </label>
-                  )}
-
-                  <div className="relative ml-auto" ref={menuRef}>
-                    <button
-                      type="button"
-                      aria-haspopup="menu"
-                      aria-expanded={menuOpen}
-                      aria-label="Categories"
-                      title="Categories"
-                      onClick={() => setMenuOpen(o => !o)}
-                      className={`grid h-10 w-10 place-items-center rounded-full border border-[#dbe5e4] text-[#0f5c5a] hover:bg-[#e3efee] ${menuOpen ? 'bg-[#e3efee]' : 'bg-white'}`}
-                    >
-                      <Icon name="Grid" size={18} />
+                  <div className="flex items-center gap-0.5 pt-0.5">
+                    <button type="button" title="Video" aria-label="Add video"
+                      onClick={() => setMsg('Video uploads are coming soon.')}
+                      className="hidden h-10 w-10 place-items-center rounded-full text-[#e11d48] hover:bg-[#f3f7f6] sm:grid">
+                      <Icon name="Video" size={22} />
                     </button>
-                    {menuOpen && (
-                      <ul role="menu" className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
-                        <li role="none" className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-[#5d7776]">Categories</li>
-                        {CATEGORIES.map(c => (
-                          <li key={c.id} role="none">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={() => { setCategory(c.id); setMenuOpen(false) }}
-                              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-[#f3f7f6] ${category === c.id ? 'bg-[#e3efee]' : ''}`}
-                            >
-                              <span>
-                                <span className="block text-sm font-bold">{c.label}</span>
-                                <span className="block text-xs text-[#5d7776]">{c.hint}</span>
-                              </span>
-                              {category === c.id && <span className="font-bold text-[#0f5c5a]">✓</span>}
+                    <button type="button" title="Photo" aria-label="Add photo"
+                      onClick={() => setMsg('Photo uploads are coming soon.')}
+                      className="hidden h-10 w-10 place-items-center rounded-full text-[#16a34a] hover:bg-[#f3f7f6] sm:grid">
+                      <Icon name="Photo" size={22} />
+                    </button>
+                    <div className="relative" ref={emojiRef}>
+                      <button type="button" title="Emoji" aria-label="Add emoji"
+                        aria-haspopup="menu" aria-expanded={emojiOpen}
+                        onClick={() => setEmojiOpen(o => !o)}
+                        className="grid h-10 w-10 place-items-center rounded-full text-[#f59e0b] hover:bg-[#f3f7f6]">
+                        <Icon name="Smile" size={22} />
+                      </button>
+                      {emojiOpen && (
+                        <div role="menu" className="absolute right-0 z-20 mt-2 grid w-56 grid-cols-6 gap-1 rounded-2xl border border-[#e5eceb] bg-white p-2 shadow-xl">
+                          {EMOJIS.map(em => (
+                            <button key={em} type="button" role="menuitem"
+                              onClick={() => { setBody(b => b + em); setEmojiOpen(false); taRef.current?.focus() }}
+                              className="grid h-8 w-8 place-items-center rounded-lg text-lg hover:bg-[#f3f7f6]">
+                              {em}
                             </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  <button
-                    disabled={posting || !body.trim()}
-                    className="rounded-full bg-[#0f5c5a] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#0b4846] disabled:opacity-50"
-                  >
-                    {posting ? 'Posting...' : 'Post'}
-                  </button>
                 </div>
+
+                {body.trim() && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#eef3f2] pt-3">
+                    <span className="rounded-full bg-[#e3efee] px-3 py-1.5 text-sm font-semibold text-[#0f5c5a]">
+                      {`Category: ${current.label}`}
+                    </span>
+                    {category !== 'confession' && (
+                      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                        <input type="checkbox" checked={allowTips} onChange={e => setAllowTips(e.target.checked)} className="h-4 w-4 accent-[#0f5c5a]" />
+                        {category === 'campaign' ? 'Allow donations' : 'Allow tips'}
+                      </label>
+                    )}
+                    <button
+                      disabled={posting}
+                      className="ml-auto rounded-full bg-[#0f5c5a] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#0b4846] disabled:opacity-50"
+                    >
+                      {posting ? 'Posting...' : 'Post'}
+                    </button>
+                  </div>
+                )}
                 {msg && <p className="mt-3 text-sm font-medium text-[#0f5c5a]">{msg}</p>}
                 {error && <p role="alert" className="mt-3 text-sm font-medium text-[#c0392b]">{error}</p>}
               </form>
