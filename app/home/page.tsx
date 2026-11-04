@@ -31,18 +31,45 @@ const one = <T,>(v: T | T[] | null | undefined): T | null =>
 const TABS = ['Home', 'Reels', 'Matrimony', 'Bazaar', 'Pages']
 
 const CATEGORIES = [
-  { id: 'all', label: 'All posts', hint: 'Sab kuch dekho' },
-  { id: 'news', label: 'Local stories', hint: 'Shehar ki khabrein aur kahaniyan' },
-  { id: 'confession', label: 'Confessions', hint: 'Anonymous baatein' },
-  { id: 'cooking', label: 'Cooking', hint: 'Recipes aur videos' },
+  { id: 'all', label: 'All posts', hint: 'See everything' },
+  { id: 'news', label: 'Local stories', hint: 'City news and stories' },
+  { id: 'confession', label: 'Confessions', hint: 'Anonymous thoughts' },
+  { id: 'cooking', label: 'Cooking', hint: 'Recipes and videos' },
   { id: 'campaign', label: 'Campaigns', hint: 'Verified NGO appeals' },
 ]
 
 const TAB_INFO: Record<string, string> = {
-  Reels: 'Chhote vertical videos yahan aayenge.',
-  Matrimony: 'Verified rishton ka section yahan aayega.',
-  Bazaar: 'Aapke shehar ka local buy and sell yahan aayega.',
-  Pages: 'Creators aur businesses ke public pages yahan aayenge.',
+  Reels: 'Short vertical videos will appear here.',
+  Matrimony: 'Verified matchmaking will appear here.',
+  Bazaar: 'Local buying and selling in your city will appear here.',
+  Pages: 'Public pages for creators and businesses will appear here.',
+}
+
+// Sample stories (static for now). Real stories need their own table and storage.
+const STORIES = [
+  { name: 'Farhana', bg: 'from-[#0f5c5a] to-[#12302f]' },
+  { name: 'Zaid', bg: 'from-[#f0a500] to-[#b36b00]' },
+  { name: 'Rubina', bg: 'from-[#2f8f8b] to-[#0f5c5a]' },
+  { name: 'Arif', bg: 'from-[#3b5bdb] to-[#1c2f7a]' },
+]
+
+function Icon({ name, size = 24 }: { name: string; size?: number }) {
+  const paths: Record<string, React.ReactNode> = {
+    Home: (<><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>),
+    Reels: (<><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m10 9 5 3-5 3z" /></>),
+    Matrimony: (<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />),
+    Bazaar: (<><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></>),
+    Pages: (<><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><path d="M4 22v-7" /></>),
+    Grid: (<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>),
+    Bell: (<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>),
+    Logout: (<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>),
+  }
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  )
 }
 
 function Logo() {
@@ -57,17 +84,35 @@ function Logo() {
   )
 }
 
-function Avatar({ name, size = 40, gold = true }: { name: string; size?: number; gold?: boolean }) {
+function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span
       style={{ width: size, height: size, fontSize: size * 0.4 }}
-      className={`grid shrink-0 place-items-center rounded-full font-bold ${
-        gold ? 'bg-[#f0a500] text-[#3a2900]' : 'bg-[#0f5c5a] text-white'
-      }`}
+      className="grid shrink-0 place-items-center rounded-full bg-[#f0a500] font-bold text-[#3a2900]"
     >
       {name.charAt(0).toUpperCase() || 'U'}
     </span>
   )
+}
+
+function useOutside(
+  ref: { current: HTMLDivElement | null },
+  open: boolean,
+  setOpen: (v: boolean) => void
+) {
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [ref, open, setOpen])
 }
 
 export default function HomePage() {
@@ -80,14 +125,18 @@ export default function HomePage() {
   const [tab, setTab] = useState('Home')
   const [category, setCategory] = useState('all')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [body, setBody] = useState('')
   const [allowTips, setAllowTips] = useState(false)
   const [posting, setPosting] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
 
-  // 1. User aur profile load karo
+  useOutside(menuRef, menuOpen, setMenuOpen)
+  useOutside(profileRef, profileOpen, setProfileOpen)
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -108,7 +157,6 @@ export default function HomePage() {
     return () => { cancelled = true }
   }, [supabase, router])
 
-  // 2. Posts load karo (city + category ke hisaab se)
   const loadPosts = useCallback(async () => {
     if (!profile?.city_id) return
     let q = supabase
@@ -125,25 +173,11 @@ export default function HomePage() {
 
   useEffect(() => { loadPosts() }, [loadPosts])
 
-  // 3. Dropdown ke bahar click ya Escape dabane par band karo
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setMenuOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [])
-
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!body.trim() || !profile) return
     if (category === 'campaign' && !profile.is_verified_ngo) {
-      return setError('Campaign sirf verified NGO post kar sakte hain.')
+      return setError('Only verified NGOs can post campaigns.')
     }
     setPosting(true); setError(''); setMsg('')
     const cat = category === 'all' ? 'general' : category
@@ -157,7 +191,7 @@ export default function HomePage() {
     setPosting(false)
     if (error) return setError(error.message)
     setBody('')
-    setMsg('Post admin approval ke liye bhej di gayi. Approve hote hi sabko dikhegi.')
+    setMsg('Your post was sent for admin approval. It will be visible to everyone once approved.')
     loadPosts()
   }
 
@@ -181,7 +215,7 @@ export default function HomePage() {
   const current = CATEGORIES.find(c => c.id === category) ?? CATEGORIES[0]
 
   const tabClass = (t: string) =>
-    `flex h-full items-center border-b-[3px] px-5 text-sm font-bold transition ${
+    `flex h-full items-center justify-center border-b-[3px] transition ${
       tab === t
         ? 'border-[#0f5c5a] text-[#0f5c5a]'
         : 'border-transparent text-[#5d7776] hover:bg-[#f3f7f6]'
@@ -201,21 +235,57 @@ export default function HomePage() {
               className="hidden w-56 rounded-full bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30 lg:block"
             />
           </div>
+
           <nav className="hidden h-full md:flex" aria-label="Main">
             {TABS.map(t => (
-              <button key={t} onClick={() => setTab(t)} className={tabClass(t)}>{t}</button>
+              <button key={t} onClick={() => setTab(t)} title={t} aria-label={t}
+                aria-current={tab === t} className={tabClass(t) + ' w-20 lg:w-24'}>
+                <Icon name={t} />
+              </button>
             ))}
           </nav>
+
           <div className="flex items-center justify-end gap-3">
-            <button aria-label="Notifications" className="relative grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+            <button aria-label="Notifications" title="Notifications"
+              className="grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
+              <Icon name="Bell" size={18} />
             </button>
-            <Avatar name={name} />
+
+            {/* Profile menu */}
+            <div className="relative" ref={profileRef}>
+              <button onClick={() => setProfileOpen(o => !o)} aria-haspopup="menu"
+                aria-expanded={profileOpen} aria-label="Profile menu" className="rounded-full">
+                <Avatar name={name} />
+              </button>
+              {profileOpen && (
+                <div role="menu" className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-2 shadow-xl">
+                  <div className="flex items-center gap-3 p-2">
+                    <Avatar name={name} size={44} />
+                    <div className="min-w-0">
+                      <p className="truncate font-bold leading-tight">{name}</p>
+                      <p className="truncate text-xs text-[#5d7776]">@{profile.username}</p>
+                      <p className="truncate text-xs text-[#5d7776]">{cityName}{city ? `, ${city.state}` : ''}</p>
+                    </div>
+                  </div>
+                  <div className="my-1 border-t border-[#eef3f2]" />
+                  <button role="menuitem" onClick={signOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">
+                    <Icon name="Logout" size={18} />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <nav className="flex overflow-x-auto border-t border-[#eef3f2] px-2 md:hidden" aria-label="Main mobile">
+
+        {/* Mobile tabs */}
+        <nav className="flex border-t border-[#eef3f2] md:hidden" aria-label="Main mobile">
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} className={tabClass(t) + ' h-11 flex-1 justify-center whitespace-nowrap px-3'}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} title={t} aria-label={t}
+              aria-current={tab === t} className={tabClass(t) + ' h-12 flex-1'}>
+              <Icon name={t} />
+            </button>
           ))}
         </nav>
       </header>
@@ -240,10 +310,7 @@ export default function HomePage() {
                 {label}
               </button>
             ))}
-            <button onClick={signOut} className="mt-3 w-full rounded-xl border border-[#f1d3cf] py-2 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">
-              Sign out
-            </button>
-            <p className="px-2 pt-4 text-xs text-[#5d7776]">
+            <p className="px-2 pt-6 text-xs text-[#5d7776]">
               <Link href="/privacy" className="underline">Privacy</Link>{' '}
               <Link href="/terms" className="underline">Terms</Link>{' '}
               <Link href="/refund" className="underline">Refund</Link>
@@ -257,10 +324,32 @@ export default function HomePage() {
           {tab !== 'Home' ? (
             <div className="rounded-2xl border border-[#e5eceb] p-12 text-center">
               <h2 className="text-xl font-extrabold">{tab}</h2>
-              <p className="mt-1 text-[#5d7776]">{TAB_INFO[tab]} Jald aa raha hai.</p>
+              <p className="mt-1 text-[#5d7776]">{TAB_INFO[tab]} Coming soon.</p>
             </div>
           ) : (
             <>
+              {/* Stories */}
+              <section aria-label="Stories" className="flex gap-3 overflow-x-auto pb-1">
+                <button
+                  onClick={() => setMsg('Stories are coming soon.')}
+                  className="relative flex h-44 w-28 shrink-0 flex-col items-center justify-end rounded-2xl border border-[#e5eceb] bg-[#f3f7f6] pb-3 hover:bg-[#e3efee]"
+                >
+                  <span className="absolute left-1/2 top-12 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full bg-[#0f5c5a] text-2xl font-bold leading-none text-white">+</span>
+                  <span className="text-xs font-bold">Create story</span>
+                </button>
+                {STORIES.map(s => (
+                  <button key={s.name}
+                    onClick={() => setMsg('Stories are coming soon.')}
+                    className={`relative flex h-44 w-28 shrink-0 flex-col justify-between rounded-2xl bg-gradient-to-b ${s.bg} p-2.5 text-white hover:brightness-110`}
+                  >
+                    <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white text-sm font-bold text-[#0f5c5a]">
+                      {s.name.charAt(0)}
+                    </span>
+                    <span className="text-left text-xs font-bold">{s.name}</span>
+                  </button>
+                ))}
+              </section>
+
               {/* Composer */}
               <form onSubmit={submit} className="rounded-2xl border border-[#e5eceb] bg-white p-4 shadow-sm">
                 <div className="flex gap-3">
@@ -270,27 +359,38 @@ export default function HomePage() {
                     onChange={e => setBody(e.target.value)}
                     maxLength={2000}
                     rows={2}
-                    placeholder={`${name.split(' ')[0]}, apne shehar ke saath kuch share karo`}
+                    placeholder={`What's on your mind, ${name.split(' ')[0]}?`}
                     className="w-full resize-none rounded-xl bg-[#f3f7f6] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
                   />
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#eef3f2] pt-3">
-                  {/* Category dropdown */}
-                  <div className="relative" ref={menuRef}>
+                  <span className="rounded-full bg-[#e3efee] px-3 py-1.5 text-sm font-semibold text-[#0f5c5a]">
+                    {current.label}
+                  </span>
+
+                  {category !== 'confession' && (
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                      <input type="checkbox" checked={allowTips} onChange={e => setAllowTips(e.target.checked)} className="h-4 w-4 accent-[#0f5c5a]" />
+                      {category === 'campaign' ? 'Allow donations' : 'Allow tips'}
+                    </label>
+                  )}
+
+                  <div className="relative ml-auto" ref={menuRef}>
                     <button
                       type="button"
                       aria-haspopup="menu"
                       aria-expanded={menuOpen}
+                      aria-label="Categories"
+                      title="Categories"
                       onClick={() => setMenuOpen(o => !o)}
-                      className="flex items-center gap-2 rounded-full border border-[#dbe5e4] bg-white px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]"
+                      className={`grid h-10 w-10 place-items-center rounded-full border border-[#dbe5e4] text-[#0f5c5a] hover:bg-[#e3efee] ${menuOpen ? 'bg-[#e3efee]' : 'bg-white'}`}
                     >
-                      <span className="text-[#5d7776]">Category</span>
-                      <span className="text-[#0f5c5a]">{current.label}</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={menuOpen ? 'rotate-180' : ''}><path d="m6 9 6 6 6-6" /></svg>
+                      <Icon name="Grid" size={18} />
                     </button>
                     {menuOpen && (
-                      <ul role="menu" className="absolute left-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
+                      <ul role="menu" className="absolute right-0 z-20 mt-2 w-72 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
+                        <li role="none" className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-[#5d7776]">Categories</li>
                         {CATEGORIES.map(c => (
                           <li key={c.id} role="none">
                             <button
@@ -311,18 +411,11 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  {category !== 'confession' && (
-                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-                      <input type="checkbox" checked={allowTips} onChange={e => setAllowTips(e.target.checked)} className="h-4 w-4 accent-[#0f5c5a]" />
-                      {category === 'campaign' ? 'Donations allow karo' : 'Tips allow karo'}
-                    </label>
-                  )}
-
                   <button
                     disabled={posting || !body.trim()}
-                    className="ml-auto rounded-full bg-[#0f5c5a] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#0b4846] disabled:opacity-50"
+                    className="rounded-full bg-[#0f5c5a] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#0b4846] disabled:opacity-50"
                   >
-                    {posting ? 'Bhej rahe hain...' : 'Post'}
+                    {posting ? 'Posting...' : 'Post'}
                   </button>
                 </div>
                 {msg && <p className="mt-3 text-sm font-medium text-[#0f5c5a]">{msg}</p>}
@@ -332,7 +425,7 @@ export default function HomePage() {
               {/* Feed */}
               {posts.length === 0 ? (
                 <div className="rounded-2xl border border-[#e5eceb] p-10 text-center text-[#5d7776]">
-                  {cityName} mein abhi koi post nahi hai. Pehli post tum karo!
+                  No posts in {cityName} yet. Be the first to share something!
                 </div>
               ) : (
                 posts.map(p => {
@@ -370,7 +463,7 @@ export default function HomePage() {
                         <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Comment</button>
                         {p.allow_tips && p.status === 'approved' && (
                           <button
-                            onClick={() => setMsg('Tips jald aa rahe hain. Razorpay jodna baaki hai.')}
+                            onClick={() => setMsg('Tips are coming soon. Razorpay is not connected yet.')}
                             className="flex-1 rounded-lg bg-[#f0a500] py-2 font-bold text-[#3a2900] hover:brightness-105"
                           >
                             {p.category === 'campaign' ? 'Donate' : 'Send tip'}
@@ -390,16 +483,16 @@ export default function HomePage() {
           <div className="sticky top-24 space-y-4">
             <section className="rounded-2xl border border-[#e5eceb] p-4">
               <h3 className="mb-2 text-sm font-extrabold">Friend requests</h3>
-              <p className="text-sm text-[#5d7776]">Abhi koi request nahi hai.</p>
+              <p className="text-sm text-[#5d7776]">No pending requests.</p>
             </section>
             <section className="rounded-2xl border border-[#e5eceb] p-4">
               <h3 className="mb-2 text-sm font-extrabold">Friends online</h3>
-              <p className="text-sm text-[#5d7776]">Friends add karne par yahan dikhenge. Chat sirf friends ke saath hoti hai.</p>
+              <p className="text-sm text-[#5d7776]">Friends you add will show up here. Chat is available only between friends.</p>
             </section>
             <section className="rounded-2xl border border-[#e5eceb] p-4">
               <h3 className="mb-2 text-sm font-extrabold">Emergency alerts</h3>
               <div className="border-l-4 border-[#c0392b] pl-3">
-                <p className="text-sm font-bold">O-negative blood chahiye</p>
+                <p className="text-sm font-bold">O-negative blood needed</p>
                 <p className="text-xs text-[#5d7776]">Gandhi Hospital · Verified</p>
               </div>
             </section>
