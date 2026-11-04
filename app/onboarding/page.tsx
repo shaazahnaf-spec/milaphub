@@ -1,63 +1,120 @@
 'use client'
-import { useEffect, useState } from 'react'
+
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createBrowserClient } from '@supabase/ssr'
 
-type City = { id: number; name: string; state: string }
-
-export default function Onboarding() {
-  const supabase = createClient()
+export default function OnboardingPage() {
   const router = useRouter()
-  const [cities, setCities] = useState<City[]>([])
-  const [fullName, setFullName] = useState('')
-  const [username, setUsername] = useState('')
-  const [cityId, setCityId] = useState('')
-  const [area, setArea] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    supabase.from('cities').select('id, name, state').eq('is_active', true).order('name')
-      .then(({ data }) => setCities((data ?? []) as City[]))
-  }, [supabase])
+  const [formData, setFormData] = useState({
+    fullName: '',
+    username: '',
+    city: '',
+    area: '',
+  })
 
-  async function save(e: React.FormEvent) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-    if (!/^[a-z0-9_]{3,20}$/.test(username))
-      return setError('Username 3-20 characters ka ho: sirf small letters, numbers ya underscore.')
-    if (!cityId) return setError('Apna city chuno.')
-    setBusy(true)
+    setLoading(true)
+    setError(null)
+
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return router.replace('/login')
-    const { error } = await supabase.from('profiles').upsert({
-      id: user.id, full_name: fullName.trim(), username,
-      city_id: Number(cityId), area: area.trim() || null,
+
+    if (!user) {
+      setError('User not authenticated')
+      setLoading(false)
+      return
+    }
+
+    const { error: insertError } = await supabase.from('profiles').insert({
+      id: user.id,
+      full_name: formData.fullName,
+      username: formData.username.toLowerCase().trim(),
+      city: formData.city,
+      area: formData.area,
     })
-    setBusy(false)
-    if (error) return setError(error.code === '23505' ? 'Ye username pehle se liya hua hai.' : error.message)
-    router.replace('/home')
-    router.refresh()
+
+    if (insertError) {
+      setError(insertError.message)
+      setLoading(false)
+    } else {
+      router.push('/home')
+    }
   }
 
-  const input = 'w-full rounded-lg border border-[#dbe5e4] px-3 py-3 outline-none focus:border-[#0f5c5a]'
   return (
-    <main className="grid min-h-screen place-items-center bg-[#eef3f2] p-4">
-      <form onSubmit={save} className="w-full max-w-sm space-y-3 rounded-2xl border border-[#dbe5e4] bg-white p-8">
-        <h1 className="text-xl font-bold text-[#12302f]">Apna profile banao</h1>
-        <p className="mb-2 text-sm text-[#5d7776]">Ye 30 second ka kaam hai.</p>
-        <input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Poora naam" className={input} />
-        <input required value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="username" className={input} />
-        <select required value={cityId} onChange={e => setCityId(e.target.value)} className={input} aria-label="City">
-          <option value="">Apna city chuno</option>
-          {cities.map(c => <option key={c.id} value={c.id}>{c.name}, {c.state}</option>)}
-        </select>
-        <input value={area} onChange={e => setArea(e.target.value)} placeholder="Locality (optional)" className={input} />
-        <button disabled={busy} className="w-full rounded-lg bg-[#0f5c5a] py-3 font-bold text-white disabled:opacity-60">
-          {busy ? 'Save ho raha hai...' : 'Save and continue'}
-        </button>
-        {error && <p role="alert" className="text-sm text-[#c0392b]">{error}</p>}
-      </form>
-    </main>
+    <div className="min-h-screen bg-[#F4F9F6] flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-emerald-100 max-w-md w-full">
+        <h2 className="text-2xl font-bold text-[#0D463B] mb-2">Apni Profile Setup Karo</h2>
+        <p className="text-gray-600 text-sm mb-6">MilapHub par shehar ke logon se judne ke liye apni details bharo.</p>
+
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Abdul Ahnaf"
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0D463B] outline-none"
+              value={formData.fullName}
+              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. ahnaf_shaaz"
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0D463B] outline-none"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Shehar (City)</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Mumbai / Delhi / Lucknow"
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0D463B] outline-none"
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Area / Locality (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Bandra / Jamia Nagar"
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#0D463B] outline-none"
+              value={formData.area}
+              onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#0D463B] hover:bg-[#09332b] text-white py-3 rounded-lg font-medium transition"
+          >
+            {loading ? 'Saving Profile...' : 'Continue to Dashboard'}
+          </button>
+        </form>
+      </div>
+    </div>
   )
 }
