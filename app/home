@@ -1,0 +1,24 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import PostComposer from '@/components/PostComposer'
+import Feed from '@/components/Feed'
+
+export default async function HomePage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles').select('username, city_id, is_verified_ngo').eq('id', user.id).maybeSingle()
+  if (!profile?.username || !profile.city_id) redirect('/onboarding')
+
+  const { data: city } = await supabase.from('cities').select('name').eq('id', profile.city_id).maybeSingle()
+
+  return (
+    <main className="mx-auto max-w-xl p-4">
+      <h1 className="mb-4 text-xl font-extrabold text-[#12302f]">{city?.name ?? 'Your city'} feed</h1>
+      <PostComposer userId={user.id} cityId={profile.city_id} isNgo={profile.is_verified_ngo} />
+      <Feed cityId={profile.city_id} />
+    </main>
+  )
+}
