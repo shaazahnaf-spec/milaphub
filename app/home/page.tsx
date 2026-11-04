@@ -7,6 +7,7 @@ export default function HomePage() {
   const [profile, setProfile] = useState<any>(null)
   const [posts, setPosts] = useState<any[]>([])
   const [newPostContent, setNewPostContent] = useState('')
+  const [category, setCategory] = useState('all')
   const [loading, setLoading] = useState(true)
   const [posting, setPosting] = useState(false)
 
@@ -16,14 +17,13 @@ export default function HomePage() {
   )
 
   useEffect(() => {
-    async function loadDashboardData() {
+    async function loadData() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         window.location.href = '/login'
         return
       }
 
-      // Fetch user profile with city details
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*, cities(id, name, state)')
@@ -33,21 +33,25 @@ export default function HomePage() {
       setProfile(profileData)
 
       if (profileData?.city_id) {
-        // Fetch posts for this city
-        const { data: postsData } = await supabase
+        let query = supabase
           .from('posts')
           .select('*, profiles(full_name, username)')
           .eq('city_id', profileData.city_id)
           .order('created_at', { ascending: false })
 
+        if (category !== 'all') {
+          query = query.eq('category', category)
+        }
+
+        const { data: postsData } = await query
         setPosts(postsData || [])
       }
 
       setLoading(false)
     }
 
-    loadDashboardData()
-  }, [])
+    loadData()
+  }, [category])
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,13 +64,12 @@ export default function HomePage() {
       author_id: user?.id,
       city_id: profile.city_id,
       content: newPostContent,
-      status: 'approved', // Direct approval for now
-      category: 'general'
+      status: 'approved',
+      category: category === 'all' ? 'general' : category
     })
 
     if (!error) {
       setNewPostContent('')
-      // Refresh posts
       const { data: postsData } = await supabase
         .from('posts')
         .select('*, profiles(full_name, username)')
@@ -80,34 +83,45 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F4F9F6] flex items-center justify-center text-[#0D463B] font-medium text-lg">
-        Loading your city hub...
+      <div className="min-h-screen bg-white flex items-center justify-center text-[#0D463B] font-medium">
+        Loading MilapHub...
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F9F6] pb-12">
-      {/* Top Navbar */}
-      <header className="bg-white border-b border-emerald-100 sticky top-0 z-10 shadow-xs">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-[#0D463B] tracking-tight">MilapHub</h1>
-            <p className="text-xs text-gray-500 font-medium">
-              📍 {profile?.cities?.name}, {profile?.cities?.state} {profile?.area ? `• ${profile.area}` : ''}
-            </p>
+    <div className="min-h-screen bg-white text-gray-800">
+      {/* Top Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-8">
+            {/* Clean MilapHub Logo without location subtitle */}
+            <h1 className="text-2xl font-black text-[#0D463B] tracking-tight cursor-pointer">
+              MilapHub
+            </h1>
+            <nav className="hidden md:flex space-x-6 text-sm font-semibold text-gray-600">
+              <span className="text-[#0D463B] border-b-2 border-[#0D463B] pb-5 cursor-pointer">Home</span>
+              <span className="hover:text-[#0D463B] cursor-pointer">Reels</span>
+              <span className="hover:text-[#0D463B] cursor-pointer">Matrimony</span>
+              <span className="hover:text-[#0D463B] cursor-pointer">Bazaar</span>
+              <span className="hover:text-[#0D463B] cursor-pointer">Pages</span>
+            </nav>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center space-x-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-gray-800">{profile?.full_name}</p>
-              <p className="text-xs text-gray-500">@{profile?.username}</p>
+              <p className="text-sm font-bold text-gray-800">{profile?.full_name}</p>
+              <p className="text-xs text-gray-400">@{profile?.username}</p>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-[#0D463B] text-white flex items-center justify-center font-bold text-sm">
+              {profile?.full_name?.charAt(0) || 'U'}
             </div>
             <button
               onClick={async () => {
                 await supabase.auth.signOut()
                 window.location.href = '/login'
               }}
-              className="text-sm border border-red-200 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition font-medium"
+              className="text-xs text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 font-medium"
             >
               Sign Out
             </button>
@@ -115,65 +129,154 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-2xl mx-auto px-4 mt-6 space-y-6">
+      {/* 3-Column Layout */}
+      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
         
-        {/* Post Composer Box */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-100">
-          <h2 className="text-sm font-semibold text-[#0D463B] mb-3">Share an update with your city</h2>
-          <form onSubmit={handleCreatePost}>
-            <textarea
-              rows={3}
-              placeholder={`What's happening in ${profile?.cities?.name || 'your city'}?`}
-              value={newPostContent}
-              onChange={(e) => setNewPostContent(e.target.value)}
-              className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0D463B] outline-none text-gray-800 text-sm resize-none"
-            />
-            <div className="flex justify-end mt-3">
-              <button
-                type="submit"
-                disabled={posting || !newPostContent.trim()}
-                className="bg-[#0D463B] hover:bg-[#09332b] text-white px-5 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50"
-              >
-                {posting ? 'Posting...' : 'Post to Feed'}
-              </button>
-            </div>
-          </form>
-        </div>
+        {/* Left Sidebar */}
+        <aside className="hidden lg:block lg:col-span-1 space-y-2">
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">👤</span>
+            <span>Your profile</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">📄</span>
+            <span>Pages</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">👥</span>
+            <span>Groups</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">🔖</span>
+            <span>Saved posts</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">💍</span>
+            <span>Matrimony dashboard</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">💰</span>
+            <span>Tips and payouts</span>
+          </div>
+          <div className="p-3 hover:bg-gray-50 rounded-xl cursor-pointer font-medium text-sm text-gray-700 flex items-center space-x-3">
+            <span className="w-7 h-7 rounded-full bg-emerald-100 text-[#0D463B] flex items-center justify-center font-bold text-xs">⚙️</span>
+            <span>Settings</span>
+          </div>
+        </aside>
 
-        {/* City Feed Section */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-bold text-[#0D463B] px-1">Local Feed</h3>
+        {/* Center Main Feed */}
+        <main className="lg:col-span-2 space-y-4">
           
-          {posts.length === 0 ? (
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-emerald-100 text-center text-gray-500">
-              <p className="font-medium text-gray-700">No posts in your city yet!</p>
-              <p className="text-sm mt-1">Be the first one to share an update or start a conversation in {profile?.cities?.name}.</p>
-            </div>
-          ) : (
-            posts.map((post) => (
-              <div key={post.id} className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-9 h-9 rounded-full bg-emerald-100 text-[#0D463B] font-bold flex items-center justify-center text-sm">
-                      {post.profiles?.full_name?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-800">{post.profiles?.full_name}</p>
-                      <p className="text-xs text-gray-400">@{post.profiles?.username}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {new Date(post.created_at).toLocaleDateString()}
-                  </span>
+          {/* Post Box */}
+          <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs">
+            <form onSubmit={handleCreatePost}>
+              <textarea
+                rows={2}
+                placeholder="Share a story, recipe or confession..."
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-sm text-gray-800 resize-none focus:bg-white focus:border-[#0D463B]"
+              />
+              <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+                <div className="flex gap-2">
+                  <select 
+                    value={category} 
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-600 outline-none"
+                  >
+                    <option value="all">General Feed</option>
+                    <option value="local_story">Local Stories</option>
+                    <option value="confession">Confessions</option>
+                    <option value="cooking">Cooking</option>
+                    <option value="campaign">Verified Campaign</option>
+                  </select>
                 </div>
-                <p className="text-gray-700 text-sm mt-2 whitespace-pre-wrap">{post.content}</p>
+                <button
+                  type="submit"
+                  disabled={posting || !newPostContent.trim()}
+                  className="bg-[#0D463B] text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-[#09332b] transition disabled:opacity-50"
+                >
+                  {posting ? 'Posting...' : 'Post'}
+                </button>
               </div>
-            ))
-          )}
-        </div>
+            </form>
+          </div>
 
-      </main>
+          {/* Category Filter Pills */}
+          <div className="flex gap-2 overflow-x-auto pb-1 text-xs">
+            {['all', 'local_story', 'confession', 'cooking', 'campaign'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-3 py-1.5 rounded-full font-medium whitespace-nowrap border ${
+                  category === cat 
+                    ? 'bg-[#0D463B] text-white border-[#0D463B]' 
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {cat === 'all' ? 'All' : cat.replace('_', ' ').toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Feed List */}
+          <div className="space-y-4">
+            {posts.length === 0 ? (
+              <div className="bg-white border border-gray-200 p-8 rounded-2xl text-center text-gray-500 text-sm">
+                No posts found in {profile?.cities?.name || 'this city'}. Be the first to share something!
+              </div>
+            ) : (
+              posts.map((post) => (
+                <div key={post.id} className="bg-white border border-gray-200 p-5 rounded-2xl space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-sm">
+                        {post.profiles?.full_name?.charAt(0) || 'U'}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{post.profiles?.full_name}</p>
+                        <p className="text-xs text-gray-400">@{post.profiles?.username} • {new Date(post.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {post.category && post.category !== 'general' && (
+                      <span className="text-[10px] bg-emerald-50 text-[#0D463B] px-2.5 py-1 rounded-full font-semibold border border-emerald-100 uppercase">
+                        {post.category.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.content}</p>
+                  
+                  <div className="flex justify-between items-center pt-3 border-t border-gray-100 text-xs text-gray-500 font-medium">
+                    <button className="hover:text-[#0D463B]">Like</button>
+                    <button className="hover:text-[#0D463B]">Comment</button>
+                    <button className="text-amber-600 font-semibold hover:underline">Send tip</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+        </main>
+
+        {/* Right Sidebar */}
+        <aside className="hidden lg:block lg:col-span-1 space-y-4">
+          <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs space-y-3">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Friend requests</h3>
+            <div className="text-xs text-gray-500 italic">No pending requests</div>
+          </div>
+
+          <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs space-y-3">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Emergency alerts</h3>
+            <div className="space-y-2">
+              <div className="p-2.5 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-xs font-bold text-red-700">O-negative blood chahiye</p>
+                <p className="text-[10px] text-gray-500">Gandhi Hospital • Verified</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
     </div>
   )
 }
