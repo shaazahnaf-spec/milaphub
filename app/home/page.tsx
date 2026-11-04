@@ -95,7 +95,6 @@ export default function HomePage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-8">
-            {/* Clean MilapHub Logo without location subtitle */}
             <h1 className="text-2xl font-black text-[#0D463B] tracking-tight cursor-pointer">
               MilapHub
             </h1>
@@ -167,6 +166,29 @@ export default function HomePage() {
         {/* Center Main Feed */}
         <main className="lg:col-span-2 space-y-4">
           
+          {/* Stories Row */}
+          <div className="grid grid-cols-5 gap-2 bg-white border border-gray-200 p-3 rounded-2xl shadow-xs">
+            <div className="relative h-36 rounded-xl bg-gray-100 flex flex-col justify-end p-2 cursor-pointer hover:opacity-90 overflow-hidden border border-emerald-100">
+              <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-[#0D463B] text-white flex items-center justify-center font-bold text-xs border-2 border-white">
+                +
+              </div>
+              <p className="text-[11px] font-bold text-gray-800 text-center">Create story</p>
+            </div>
+            {[
+              { name: 'Farhana', bg: 'bg-emerald-800' },
+              { name: 'Zaid', bg: 'bg-amber-700' },
+              { name: 'Rubina', bg: 'bg-teal-700' },
+              { name: 'Arif', bg: 'bg-blue-800' }
+            ].map((story, idx) => (
+              <div key={idx} className={`relative h-36 rounded-xl ${story.bg} flex flex-col justify-between p-2 cursor-pointer hover:opacity-90 text-white shadow-xs`}>
+                <div className="w-7 h-7 rounded-full bg-white text-[#0D463B] font-bold text-[10px] flex items-center justify-center">
+                  {story.name.charAt(0)}
+                </div>
+                <p className="text-[11px] font-semibold truncate">{story.name}</p>
+              </div>
+            ))}
+          </div>
+
           {/* Post Box */}
           <div className="bg-white border border-gray-200 p-4 rounded-2xl shadow-xs">
             <form onSubmit={handleCreatePost}>
@@ -202,7 +224,7 @@ export default function HomePage() {
             </form>
           </div>
 
-          {/* Category Filter Pills */}
+          {/* Category Filter Pills (Cooking, Confessions, Local Stories, Campaigns) */}
           <div className="flex gap-2 overflow-x-auto pb-1 text-xs">
             {['all', 'local_story', 'confession', 'cooking', 'campaign'].map((cat) => (
               <button
