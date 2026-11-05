@@ -14,7 +14,7 @@ export default async function SavedPage() {
 
   const { data } = await supabase
     .from('saved_posts')
-    .select('created_at, posts(id, body, category, profiles(full_name, username))')
+    .select('created_at, posts(id, body, category, profiles!author_id(full_name, username))')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
