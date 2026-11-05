@@ -22,6 +22,20 @@ type Group = {
   author: string
   reports: { reason: string; details: string | null }[]
 }
+type CommentRef = { id: string; body: string; profiles: Author | Author[] | null }
+type CReportRow = {
+  id: string
+  comment_id: string
+  reason: string
+  details: string | null
+  post_comments: CommentRef | CommentRef[] | null
+}
+type CGroup = {
+  commentId: string
+  body: string
+  author: string
+  reports: { reason: string; details: string | null }[]
+}
 type CityRef = { name: string }
 type Ad = {
   id: string
@@ -72,8 +86,9 @@ export default function AdminPage() {
   const router = useRouter()
 
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
-  const [tab, setTab] = useState<'reports' | 'ads'>('reports')
+  const [tab, setTab] = useState<'reports' | 'comments' | 'ads'>('reports')
   const [groups, setGroups] = useState<Group[]>([])
+  const [cGroups, setCGroups] = useState<CGroup[]>([])
   const [ads, setAds] = useState<Ad[]>([])
   const [cities, setCities] = useState<City[]>([])
   const [nowMs, setNowMs] = useState(0)
@@ -122,6 +137,29 @@ export default function AdminPage() {
     setGroups(Array.from(map.values()).sort((x, y) => y.reports.length - x.reports.length))
   }, [supabase, notify])
 
+  const loadCommentReports = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('comment_reports')
+      .select('id, comment_id, reason, details, post_comments(id, body, profiles!author_id(full_name, username))')
+      .order('created_at', { ascending: false })
+    if (error) return notify(error.message)
+    const map = new Map<string, CGroup>()
+    for (const r of (data ?? []) as unknown as CReportRow[]) {
+      const c = one(r.post_comments)
+      if (!c) continue
+      const a = one(c.profiles)
+      const g = map.get(r.comment_id) ?? {
+        commentId: r.comment_id,
+        body: c.body,
+        author: a ? `${a.full_name ?? 'User'} (@${a.username ?? 'user'})` : 'Unknown',
+        reports: [],
+      }
+      g.reports.push({ reason: r.reason, details: r.details })
+      map.set(r.comment_id, g)
+    }
+    setCGroups(Array.from(map.values()).sort((x, y) => y.reports.length - x.reports.length))
+  }, [supabase, notify])
+
   const loadAds = useCallback(async () => {
     const { data, error } = await supabase
       .from('ads')
@@ -140,12 +178,13 @@ export default function AdminPage() {
       if (me?.role !== 'admin') { setState('denied'); return }
       setState('ok')
       loadReports()
+      loadCommentReports()
       loadAds()
       supabase.from('cities').select('id, name, state').order('name')
         .then(({ data }) => setCities((data ?? []) as City[]))
     }
     init()
-  }, [supabase, router, loadReports, loadAds])
+  }, [supabase, router, loadReports, loadCommentReports, loadAds])
 
   async function deletePost(postId: string) {
     if (!window.confirm('Delete this post permanently?')) return
@@ -182,6 +221,21 @@ export default function AdminPage() {
     setMediaType(isVideo ? 'video' : 'image')
     setFileName(file.name)
     notify(isVideo && file.size > 10 * 1024 * 1024 ? 'Uploaded. Tip: videos under 10 MB load faster.' : 'Uploaded.')
+  }
+
+  async function deleteComment(commentId: string) {
+    if (!window.confirm('Delete this comment permanently?')) return
+    const { error } = await supabase.from('post_comments').delete().eq('id', commentId)
+    if (error) return notify(error.message)
+    notify('Comment deleted.')
+    loadCommentReports()
+  }
+
+  async function dismissComment(commentId: string) {
+    const { error } = await supabase.from('comment_reports').delete().eq('comment_id', commentId)
+    if (error) return notify(error.message)
+    notify('Reports dismissed.')
+    loadCommentReports()
   }
 
   async function createAd(e: React.FormEvent) {
@@ -242,7 +296,7 @@ export default function AdminPage() {
     )
   }
 
-  const tabBtn = (t: 'reports' | 'ads', label: string) => (
+  const tabBtn = (t: 'reports' | 'comments' | 'ads', label: string) => (
     <button
       onClick={() => setTab(t)}
       className={`rounded-full px-5 py-2 text-sm font-bold ${tab === t ? 'bg-[#0f5c5a] text-white' : 'bg-[#f3f7f6] text-[#12302f] hover:bg-[#e3efee]'}`}
@@ -263,6 +317,7 @@ export default function AdminPage() {
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-6">
         <div className="flex gap-2">
           {tabBtn('reports', `Reports (${groups.length})`)}
+          {tabBtn('comments', `Comment reports (${cGroups.length})`)}
           {tabBtn('ads', `Ads (${ads.length})`)}
         </div>
 
@@ -296,6 +351,42 @@ export default function AdminPage() {
                   <div className="mt-4 flex justify-end gap-2">
                     <button onClick={() => dismiss(g.postId)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Dismiss reports</button>
                     <button onClick={() => deletePost(g.postId)} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Delete post</button>
+                  </div>
+                </article>
+              )
+            })
+          )
+        )}
+
+        {tab === 'comments' && (
+          cGroups.length === 0 ? (
+            <p className="rounded-2xl border border-[#e5eceb] p-10 text-center text-[#5d7776]">No reported comments. All clear.</p>
+          ) : (
+            cGroups.map(g => {
+              const counts: Record<string, number> = {}
+              g.reports.forEach(r => { counts[r.reason] = (counts[r.reason] ?? 0) + 1 })
+              return (
+                <article key={g.commentId} className="rounded-2xl border border-[#e5eceb] p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold">{g.author}</span>
+                    <span className="ml-auto rounded-full bg-[#fdecea] px-3 py-1 text-xs font-bold text-[#c0392b]">
+                      {g.reports.length} {g.reports.length === 1 ? 'report' : 'reports'}
+                    </span>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[#f3f7f6] p-3 text-[15px]">{g.body}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                    {Object.entries(counts).map(([k, n]) => (
+                      <span key={k} className="rounded-full border border-[#dbe5e4] px-3 py-1">{REASON_LABEL[k] ?? k}: {n}</span>
+                    ))}
+                  </div>
+                  {g.reports.some(r => r.details) && (
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[#5d7776]">
+                      {g.reports.filter(r => r.details).map((r, i) => <li key={i}>{r.details}</li>)}
+                    </ul>
+                  )}
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button onClick={() => dismissComment(g.commentId)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Dismiss reports</button>
+                    <button onClick={() => deleteComment(g.commentId)} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Delete comment</button>
                   </div>
                 </article>
               )
