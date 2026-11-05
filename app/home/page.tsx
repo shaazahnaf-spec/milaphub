@@ -34,6 +34,7 @@ type Post = {
 type Comment = {
   id: string
   author_id: string
+  parent_id: string | null
   body: string
   created_at: string
   profiles: Author | Author[] | null
@@ -200,6 +201,7 @@ export default function HomePage() {
   const [comments, setComments] = useState<Record<string, Comment[]>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [cBusy, setCBusy] = useState<string | null>(null)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
 
   function notify(t: string) {
     setToast(t)
@@ -353,7 +355,7 @@ export default function HomePage() {
     if (isOpen) return
     const { data, error } = await supabase
       .from('post_comments')
-      .select('id, author_id, body, created_at, profiles!author_id(full_name, username)')
+      .select('id, author_id, parent_id, body, created_at, profiles!author_id(full_name, username)')
       .eq('post_id', p.id)
       .order('created_at', { ascending: true })
       .limit(100)
@@ -361,22 +363,32 @@ export default function HomePage() {
     setComments(prev => ({ ...prev, [p.id]: (data ?? []) as unknown as Comment[] }))
   }
 
-  async function addComment(p: Post) {
-    const text = (drafts[p.id] ?? '').trim()
+  async function addComment(p: Post, parentId?: string) {
+    const key = parentId ?? p.id
+    const text = (drafts[key] ?? '').trim()
     if (!text || !profile) return
-    setCBusy(p.id)
+    setCBusy(key)
     const { data, error } = await supabase
       .from('post_comments')
-      .insert({ post_id: p.id, author_id: profile.id, body: text })
-      .select('id, author_id, body, created_at, profiles!author_id(full_name, username)')
+      .insert({ post_id: p.id, author_id: profile.id, body: text, parent_id: parentId ?? null })
+      .select('id, author_id, parent_id, body, created_at, profiles!author_id(full_name, username)')
       .single()
     setCBusy(null)
     if (error) return notify(error.message)
-    setDrafts(prev => ({ ...prev, [p.id]: '' }))
+    setDrafts(prev => ({ ...prev, [key]: '' }))
+    if (parentId) setReplyingTo(null)
     setComments(prev => ({ ...prev, [p.id]: [...(prev[p.id] ?? []), data as unknown as Comment] }))
     setPosts(list => list.map(x =>
       x.id === p.id ? { ...x, post_comments: [{ count: commentCount(x) + 1 }] } : x
     ))
+  }
+
+  function startReply(c: Comment, name: string) {
+    const topId = c.parent_id ?? c.id
+    setReplyingTo(topId)
+    if (c.parent_id) {
+      setDrafts(prev => (prev[topId] ? prev : { ...prev, [topId]: `@${name} ` }))
+    }
   }
 
   async function deleteComment(p: Post, c: Comment) {
@@ -384,9 +396,11 @@ export default function HomePage() {
     const { data, error } = await supabase.from('post_comments').delete().eq('id', c.id).select('id')
     if (error) return notify(error.message)
     if (!data || data.length === 0) return notify('You are not allowed to delete this comment.')
-    setComments(prev => ({ ...prev, [p.id]: (prev[p.id] ?? []).filter(x => x.id !== c.id) }))
-    setPosts(list => list.map(x =>
-      x.id === p.id ? { ...x, post_comments: [{ count: Math.max(0, commentCount(x) - 1) }] } : x
+    const list = comments[p.id] ?? []
+    const removed = list.filter(x => x.id === c.id || x.parent_id === c.id).length
+    setComments(prev => ({ ...prev, [p.id]: list.filter(x => x.id !== c.id && x.parent_id !== c.id) }))
+    setPosts(all => all.map(x =>
+      x.id === p.id ? { ...x, post_comments: [{ count: Math.max(0, commentCount(x) - removed) }] } : x
     ))
   }
 
@@ -470,6 +484,41 @@ export default function HomePage() {
   const cityName = city?.name ?? 'your city'
   const name = profile.full_name ?? 'User'
   const current = CATEGORIES.find(c => c.id === category) ?? CATEGORIES[0]
+
+  const renderComment = (p: Post, c: Comment, isReply: boolean) => {
+    const ca = one(c.profiles)
+    const cname = ca?.full_name ?? 'MilapHub user'
+    const canDelete = c.author_id === profile.id || p.author_id === profile.id || profile.role === 'admin'
+    return (
+      <div key={c.id} className="flex items-start gap-2">
+        <Avatar name={cname} size={isReply ? 28 : 32} />
+        <div className="min-w-0 flex-1">
+          <div className="inline-block max-w-full rounded-2xl bg-[#f3f7f6] px-3 py-2">
+            <p className="text-sm font-bold leading-tight">{cname}</p>
+            <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
+          </div>
+          <div className="pl-2">
+            <button
+              onClick={() => startReply(c, cname)}
+              className="text-xs font-semibold text-[#5d7776] hover:text-[#0f5c5a] hover:underline"
+            >
+              Reply
+            </button>
+          </div>
+        </div>
+        {canDelete && (
+          <button
+            onClick={() => deleteComment(p, c)}
+            aria-label="Delete comment"
+            title="Delete comment"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#5d7776] hover:bg-[#fdecea] hover:text-[#c0392b]"
+          >
+            <Icon name="Trash" size={15} />
+          </button>
+        )}
+      </div>
+    )
+  }
 
   const tabClass = (t: string) =>
     `flex h-full items-center justify-center border-b-[3px] transition ${
@@ -865,28 +914,45 @@ export default function HomePage() {
                           {(comments[p.id] ?? []).length === 0 && (
                             <p className="text-sm text-[#5d7776]">No comments yet. Start the conversation.</p>
                           )}
-                          {(comments[p.id] ?? []).map(c => {
-                            const ca = one(c.profiles)
-                            const cname = ca?.full_name ?? 'MilapHub user'
-                            const canDelete = c.author_id === profile.id || p.author_id === profile.id || isAdmin
+                          {(comments[p.id] ?? []).filter(c => !c.parent_id).map(c => {
+                            const replies = (comments[p.id] ?? []).filter(r => r.parent_id === c.id)
                             return (
-                              <div key={c.id} className="flex items-start gap-2">
-                                <Avatar name={cname} size={32} />
-                                <div className="min-w-0 flex-1">
-                                  <div className="inline-block max-w-full rounded-2xl bg-[#f3f7f6] px-3 py-2">
-                                    <p className="text-sm font-bold leading-tight">{cname}</p>
-                                    <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
+                              <div key={c.id} className="space-y-2">
+                                {renderComment(p, c, false)}
+                                {replies.length > 0 && (
+                                  <div className="ml-10 space-y-2 border-l-2 border-[#eef3f2] pl-3">
+                                    {replies.map(r => renderComment(p, r, true))}
                                   </div>
-                                </div>
-                                {canDelete && (
-                                  <button
-                                    onClick={() => deleteComment(p, c)}
-                                    aria-label="Delete comment"
-                                    title="Delete comment"
-                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#5d7776] hover:bg-[#fdecea] hover:text-[#c0392b]"
+                                )}
+                                {replyingTo === c.id && (
+                                  <form
+                                    onSubmit={e => { e.preventDefault(); addComment(p, c.id) }}
+                                    className="ml-10 flex items-center gap-2"
                                   >
-                                    <Icon name="Trash" size={15} />
-                                  </button>
+                                    <Avatar name={name} size={28} />
+                                    <input
+                                      autoFocus
+                                      value={drafts[c.id] ?? ''}
+                                      onChange={e => setDrafts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                                      maxLength={1000}
+                                      placeholder="Write a reply..."
+                                      aria-label="Write a reply"
+                                      className="min-w-0 flex-1 rounded-full bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                                    />
+                                    <button
+                                      disabled={cBusy === c.id || !(drafts[c.id] ?? '').trim()}
+                                      className="rounded-full bg-[#0f5c5a] px-4 py-2 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50"
+                                    >
+                                      Reply
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setReplyingTo(null)}
+                                      className="rounded-full px-3 py-2 text-sm font-semibold hover:bg-[#f3f7f6]"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </form>
                                 )}
                               </div>
                             )
