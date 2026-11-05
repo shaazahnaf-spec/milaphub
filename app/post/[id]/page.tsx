@@ -20,7 +20,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data } = await supabase
     .from('posts')
-    .select('id, body, category, profiles(full_name, username)')
+    .select('id, body, category, profiles!author_id(full_name, username)')
     .eq('id', id)
     .maybeSingle()
   if (!data) notFound()
