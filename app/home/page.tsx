@@ -231,7 +231,7 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), profiles(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), profiles!author_id(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
