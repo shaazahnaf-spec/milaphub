@@ -28,10 +28,19 @@ type Post = {
   created_at: string
   edited_at: string | null
   post_likes: { count: number }[] | null
+  post_comments: { count: number }[] | null
+  profiles: Author | Author[] | null
+}
+type Comment = {
+  id: string
+  author_id: string
+  body: string
+  created_at: string
   profiles: Author | Author[] | null
 }
 
 const likeCount = (p: { post_likes: { count: number }[] | null }) => p.post_likes?.[0]?.count ?? 0
+const commentCount = (p: { post_comments: { count: number }[] | null }) => p.post_comments?.[0]?.count ?? 0
 
 const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
@@ -187,6 +196,10 @@ export default function HomePage() {
   const [adMap, setAdMap] = useState<Record<string, Ad[]>>({})
   const [liked, setLiked] = useState<Set<string>>(new Set())
   const [saved, setSaved] = useState<Set<string>>(new Set())
+  const [openC, setOpenC] = useState<Set<string>>(new Set())
+  const [comments, setComments] = useState<Record<string, Comment[]>>({})
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [cBusy, setCBusy] = useState<string | null>(null)
 
   function notify(t: string) {
     setToast(t)
@@ -231,7 +244,7 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), profiles!author_id(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), post_comments(count), profiles!author_id(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -328,6 +341,53 @@ export default function HomePage() {
     if (error) return notify(error.code === '23505' ? 'You already reported this post.' : error.message)
     setReportId(null); setReason('spam'); setDetails('')
     notify('Thanks. Our team will review this post.')
+  }
+
+  async function toggleComments(p: Post) {
+    const isOpen = openC.has(p.id)
+    setOpenC(prev => {
+      const n = new Set(prev)
+      if (isOpen) n.delete(p.id); else n.add(p.id)
+      return n
+    })
+    if (isOpen) return
+    const { data, error } = await supabase
+      .from('post_comments')
+      .select('id, author_id, body, created_at, profiles!author_id(full_name, username)')
+      .eq('post_id', p.id)
+      .order('created_at', { ascending: true })
+      .limit(100)
+    if (error) return notify(error.message)
+    setComments(prev => ({ ...prev, [p.id]: (data ?? []) as unknown as Comment[] }))
+  }
+
+  async function addComment(p: Post) {
+    const text = (drafts[p.id] ?? '').trim()
+    if (!text || !profile) return
+    setCBusy(p.id)
+    const { data, error } = await supabase
+      .from('post_comments')
+      .insert({ post_id: p.id, author_id: profile.id, body: text })
+      .select('id, author_id, body, created_at, profiles!author_id(full_name, username)')
+      .single()
+    setCBusy(null)
+    if (error) return notify(error.message)
+    setDrafts(prev => ({ ...prev, [p.id]: '' }))
+    setComments(prev => ({ ...prev, [p.id]: [...(prev[p.id] ?? []), data as unknown as Comment] }))
+    setPosts(list => list.map(x =>
+      x.id === p.id ? { ...x, post_comments: [{ count: commentCount(x) + 1 }] } : x
+    ))
+  }
+
+  async function deleteComment(p: Post, c: Comment) {
+    if (!window.confirm('Delete this comment?')) return
+    const { data, error } = await supabase.from('post_comments').delete().eq('id', c.id).select('id')
+    if (error) return notify(error.message)
+    if (!data || data.length === 0) return notify('You are not allowed to delete this comment.')
+    setComments(prev => ({ ...prev, [p.id]: (prev[p.id] ?? []).filter(x => x.id !== c.id) }))
+    setPosts(list => list.map(x =>
+      x.id === p.id ? { ...x, post_comments: [{ count: Math.max(0, commentCount(x) - 1) }] } : x
+    ))
   }
 
   async function toggleLike(p: Post) {
@@ -778,10 +838,12 @@ export default function HomePage() {
                           Like{likeCount(p) > 0 ? ` ${likeCount(p)}` : ''}
                         </button>
                         <button
-                          onClick={() => notify('Comments are coming soon.')}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 hover:bg-[#f3f7f6]"
+                          onClick={() => toggleComments(p)}
+                          aria-expanded={openC.has(p.id)}
+                          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 hover:bg-[#f3f7f6] ${openC.has(p.id) ? 'text-[#0f5c5a]' : ''}`}
                         >
-                          <Icon name="Comment" size={18} />Comment
+                          <Icon name="Comment" size={18} />
+                          Comment{commentCount(p) > 0 ? ` ${commentCount(p)}` : ''}
                         </button>
                         <button
                           onClick={() => sharePost(p)}
@@ -798,6 +860,59 @@ export default function HomePage() {
                           </button>
                         )}
                       </div>
+                      {openC.has(p.id) && (
+                        <div className="mt-3 space-y-3 border-t border-[#eef3f2] pt-3">
+                          {(comments[p.id] ?? []).length === 0 && (
+                            <p className="text-sm text-[#5d7776]">No comments yet. Start the conversation.</p>
+                          )}
+                          {(comments[p.id] ?? []).map(c => {
+                            const ca = one(c.profiles)
+                            const cname = ca?.full_name ?? 'MilapHub user'
+                            const canDelete = c.author_id === profile.id || p.author_id === profile.id || isAdmin
+                            return (
+                              <div key={c.id} className="flex items-start gap-2">
+                                <Avatar name={cname} size={32} />
+                                <div className="min-w-0 flex-1">
+                                  <div className="inline-block max-w-full rounded-2xl bg-[#f3f7f6] px-3 py-2">
+                                    <p className="text-sm font-bold leading-tight">{cname}</p>
+                                    <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
+                                  </div>
+                                </div>
+                                {canDelete && (
+                                  <button
+                                    onClick={() => deleteComment(p, c)}
+                                    aria-label="Delete comment"
+                                    title="Delete comment"
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[#5d7776] hover:bg-[#fdecea] hover:text-[#c0392b]"
+                                  >
+                                    <Icon name="Trash" size={15} />
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                          <form
+                            onSubmit={e => { e.preventDefault(); addComment(p) }}
+                            className="flex items-center gap-2"
+                          >
+                            <Avatar name={name} size={32} />
+                            <input
+                              value={drafts[p.id] ?? ''}
+                              onChange={e => setDrafts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              maxLength={1000}
+                              placeholder="Write a comment..."
+                              aria-label="Write a comment"
+                              className="min-w-0 flex-1 rounded-full bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                            />
+                            <button
+                              disabled={cBusy === p.id || !(drafts[p.id] ?? '').trim()}
+                              className="rounded-full bg-[#0f5c5a] px-4 py-2 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50"
+                            >
+                              Post
+                            </button>
+                          </form>
+                        </div>
+                      )}
                     </article>
                   )
                 })
