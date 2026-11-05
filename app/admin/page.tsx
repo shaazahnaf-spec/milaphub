@@ -312,6 +312,7 @@ export default function AdminPage() {
                   <select value={slot} onChange={e => setSlot(e.target.value)} className={field + ' mt-1'}>
                     {SLOTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                   </select>
+                  <span className="mt-1 block text-xs font-normal text-[#5d7776]">Up to 5 live ads rotate in each slot.</span>
                 </label>
                 <label className="text-sm font-semibold">City
                   <select value={cityId} onChange={e => setCityId(e.target.value)} className={field + ' mt-1'}>
