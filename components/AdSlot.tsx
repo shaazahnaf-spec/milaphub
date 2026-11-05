@@ -1,3 +1,4 @@
+// FILE: components/AdSlot.tsx  (GitHub mein is path par paste karo)
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -9,6 +10,7 @@ export type Ad = {
   title: string
   body: string | null
   image_url: string | null
+  media_type: string
   link_url: string
   advertiser: string | null
 }
@@ -18,6 +20,12 @@ type Props = { ad?: Ad; cityName: string; imgClass?: string; boxClass?: string }
 export default function AdSlot({ ad, cityName, imgClass = 'aspect-[4/3]', boxClass = 'min-h-[140px]' }: Props) {
   const [supabase] = useState(() => createClient())
   const adId = ad?.id
+  const [reduced, setReduced] = useState(false)
+
+  // Jo log "reduce motion" use karte hain unke liye video autoplay nahi hoga
+  useEffect(() => {
+    setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  }, [])
 
   // Impression count (advertiser ko report dikhane ke liye)
   useEffect(() => {
@@ -46,8 +54,21 @@ export default function AdSlot({ ad, cityName, imgClass = 'aspect-[4/3]', boxCla
       className="block overflow-hidden rounded-2xl border border-[#e5eceb] bg-white transition hover:shadow-md"
     >
       {ad.image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={ad.image_url} alt="" loading="lazy" className={`w-full object-cover ${imgClass}`} />
+        ad.media_type === 'video' ? (
+          <video
+            src={ad.image_url}
+            muted
+            loop
+            playsInline
+            autoPlay={!reduced}
+            preload="metadata"
+            aria-hidden="true"
+            className={`w-full object-cover ${imgClass}`}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ad.image_url} alt="" loading="lazy" className={`w-full object-cover ${imgClass}`} />
+        )
       )}
       <div className="p-3">
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#5d7776]">Sponsored</p>
