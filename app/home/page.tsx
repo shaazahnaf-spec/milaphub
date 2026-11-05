@@ -184,7 +184,7 @@ export default function HomePage() {
   const [details, setDetails] = useState('')
   const [reporting, setReporting] = useState(false)
   const [toast, setToast] = useState('')
-  const [adMap, setAdMap] = useState<Record<string, Ad>>({})
+  const [adMap, setAdMap] = useState<Record<string, Ad[]>>({})
   const [liked, setLiked] = useState<Set<string>>(new Set())
   const [saved, setSaved] = useState<Set<string>>(new Set())
 
@@ -254,7 +254,7 @@ export default function HomePage() {
       .then(({ data }) => setSaved(new Set((data ?? []).map(r => r.post_id as string))))
   }, [supabase, profile])
 
-  // Ads: 3 slots (left_1, right_1, right_2), apne city ya poore India ke liye
+  // Ads: 3 slots (left_1, right_1, right_2), har slot mein slideshow, apne city ya poore India ke liye
   useEffect(() => {
     if (!profile?.city_id) return
     supabase
@@ -263,10 +263,11 @@ export default function HomePage() {
       .or(`city_id.is.null,city_id.eq.${profile.city_id}`)
       .then(({ data }) => {
         const rows = (data ?? []) as Ad[]
-        const map: Record<string, Ad> = {}
+        const map: Record<string, Ad[]> = {}
         for (const slot of ['left_1', 'right_1', 'right_2']) {
-          const list = rows.filter(r => r.slot === slot)
-          if (list.length) map[slot] = list[Math.floor(Math.random() * list.length)]
+          // Har slot mein max 5 ads slideshow ki tarah ghoomte hain (order random)
+          const list = rows.filter(r => r.slot === slot).sort(() => Math.random() - 0.5).slice(0, 5)
+          if (list.length) map[slot] = list
         }
         setAdMap(map)
       })
@@ -558,7 +559,7 @@ export default function HomePage() {
               ))}
             </div>
             <div className="shrink-0 space-y-2 pt-3">
-              <AdSlot ad={adMap.left_1} cityName={cityName} imgClass="aspect-[16/10]" boxClass="min-h-[200px]" />
+              <AdSlot ads={adMap.left_1} cityName={cityName} imgClass="aspect-[16/10]" boxClass="min-h-[200px]" />
               <p className="px-1 text-xs text-[#5d7776]">
                 <Link href="/privacy" className="underline">Privacy</Link>{' '}
                 <Link href="/terms" className="underline">Terms</Link>{' '}
@@ -819,8 +820,8 @@ export default function HomePage() {
               </section>
             </div>
             <div className="shrink-0 space-y-3 pt-3">
-              <AdSlot ad={adMap.right_1} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
-              <AdSlot ad={adMap.right_2} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
+              <AdSlot ads={adMap.right_1} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
+              <AdSlot ads={adMap.right_2} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
             </div>
           </div>
         </aside>
