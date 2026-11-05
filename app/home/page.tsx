@@ -1,3 +1,4 @@
+// FILE: app/home/page.tsx  (GitHub mein is path par paste karo)
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -26,8 +27,11 @@ type Post = {
   status: string
   created_at: string
   edited_at: string | null
+  post_likes: { count: number }[] | null
   profiles: Author | Author[] | null
 }
+
+const likeCount = (p: { post_likes: { count: number }[] | null }) => p.post_likes?.[0]?.count ?? 0
 
 const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
@@ -71,7 +75,7 @@ const STORIES = [
   { name: 'Arif', bg: 'from-[#3b5bdb] to-[#1c2f7a]' },
 ]
 
-function Icon({ name, size = 24 }: { name: string; size?: number }) {
+function Icon({ name, size = 24, fill = false }: { name: string; size?: number; fill?: boolean }) {
   const paths: Record<string, React.ReactNode> = {
     Home: (<><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>),
     Reels: (<><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m10 9 5 3-5 3z" /></>),
@@ -85,12 +89,17 @@ function Icon({ name, size = 24 }: { name: string; size?: number }) {
     Dots: (<><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></>),
     Edit: (<><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>),
     Flag: (<><path d="M4 22V4" /><path d="M4 4h13l-2 4 2 4H4" /></>),
+    Like: (<><path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" /></>),
+    Comment: (<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />),
+    Share: (<><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.59 13.51 6.83 3.98" /><path d="m15.41 6.51-6.82 3.98" /></>),
+    Bookmark: (<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />),
+    Chain: (<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>),
     Video: (<><path d="m22 8-6 4 6 4V8z" /><rect x="2" y="6" width="14" height="12" rx="2" /></>),
     Photo: (<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></>),
     Smile: (<><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01" /><path d="M15 9h.01" /></>),
   }
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={fill ? 'currentColor' : 'none'} stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {paths[name]}
     </svg>
@@ -176,6 +185,8 @@ export default function HomePage() {
   const [reporting, setReporting] = useState(false)
   const [toast, setToast] = useState('')
   const [adMap, setAdMap] = useState<Record<string, Ad>>({})
+  const [liked, setLiked] = useState<Set<string>>(new Set())
+  const [saved, setSaved] = useState<Set<string>>(new Set())
 
   function notify(t: string) {
     setToast(t)
@@ -220,24 +231,35 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, profiles(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), profiles(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
     if (category !== 'all') q = q.eq('category', category)
     const { data, error } = await q
-    if (error) setError(error.message)
-    else setPosts((data ?? []) as unknown as Post[])
+    if (error) { setError(error.message); return }
+    const rows = (data ?? []) as unknown as Post[]
+    setPosts(rows)
+    if (rows.length === 0) { setLiked(new Set()); return }
+    const { data: lk } = await supabase
+      .from('post_likes').select('post_id').eq('user_id', profile.id).in('post_id', rows.map(r => r.id))
+    setLiked(new Set((lk ?? []).map(r => r.post_id as string)))
   }, [supabase, profile, category])
 
   useEffect(() => { loadPosts() }, [loadPosts])
+
+  useEffect(() => {
+    if (!profile) return
+    supabase.from('saved_posts').select('post_id').eq('user_id', profile.id)
+      .then(({ data }) => setSaved(new Set((data ?? []).map(r => r.post_id as string))))
+  }, [supabase, profile])
 
   // Ads: 3 slots (left_1, right_1, right_2), apne city ya poore India ke liye
   useEffect(() => {
     if (!profile?.city_id) return
     supabase
       .from('ads')
-      .select('id, slot, title, body, image_url, link_url, advertiser')
+      .select('id, slot, title, body, image_url, media_type, link_url, advertiser')
       .or(`city_id.is.null,city_id.eq.${profile.city_id}`)
       .then(({ data }) => {
         const rows = (data ?? []) as Ad[]
@@ -305,6 +327,68 @@ export default function HomePage() {
     if (error) return notify(error.code === '23505' ? 'You already reported this post.' : error.message)
     setReportId(null); setReason('spam'); setDetails('')
     notify('Thanks. Our team will review this post.')
+  }
+
+  async function toggleLike(p: Post) {
+    if (!profile) return
+    const isLiked = liked.has(p.id)
+    setLiked(prev => {
+      const n = new Set(prev)
+      if (isLiked) n.delete(p.id); else n.add(p.id)
+      return n
+    })
+    setPosts(list => list.map(x =>
+      x.id === p.id ? { ...x, post_likes: [{ count: Math.max(0, likeCount(x) + (isLiked ? -1 : 1)) }] } : x
+    ))
+    const { error } = isLiked
+      ? await supabase.from('post_likes').delete().eq('post_id', p.id).eq('user_id', profile.id)
+      : await supabase.from('post_likes').insert({ post_id: p.id, user_id: profile.id })
+    if (error) { notify(error.message); loadPosts() }
+  }
+
+  async function toggleSave(id: string) {
+    if (!profile) return
+    setPostMenu(null)
+    const isSaved = saved.has(id)
+    setSaved(prev => {
+      const n = new Set(prev)
+      if (isSaved) n.delete(id); else n.add(id)
+      return n
+    })
+    const { error } = isSaved
+      ? await supabase.from('saved_posts').delete().eq('post_id', id).eq('user_id', profile.id)
+      : await supabase.from('saved_posts').insert({ post_id: id, user_id: profile.id })
+    if (error) {
+      notify(error.message)
+      setSaved(prev => {
+        const n = new Set(prev)
+        if (isSaved) n.add(id); else n.delete(id)
+        return n
+      })
+      return
+    }
+    notify(isSaved ? 'Removed from saved posts.' : 'Post saved.')
+  }
+
+  async function copyLink(id: string) {
+    const url = `${window.location.origin}/post/${id}`
+    try {
+      await navigator.clipboard.writeText(url)
+      notify('Link copied.')
+    } catch {
+      notify('Could not copy the link.')
+    }
+  }
+
+  async function sharePost(p: Post) {
+    const url = `${window.location.origin}/post/${p.id}`
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: 'MilapHub', text: (p.body ?? '').slice(0, 100), url })
+      } catch {}
+      return
+    }
+    copyLink(p.id)
   }
 
   async function signOut() {
@@ -419,6 +503,12 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="my-1 border-t border-[#eef3f2]" />
+                  {profile.role === 'admin' && (
+                    <Link href="/admin" role="menuitem" className={MENU_ITEM}>
+                      <Icon name="Grid" size={18} />
+                      Admin panel
+                    </Link>
+                  )}
                   <button role="menuitem" onClick={signOut}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">
                     <Icon name="Logout" size={18} />
@@ -455,9 +545,13 @@ export default function HomePage() {
               </div>
               {[
                 ['Fr', 'Friends'], ['Pg', 'Pages'], ['Gr', 'Groups'], ['Sv', 'Saved posts'],
-                ['Mt', 'Matrimony dashboard'], ['₹', 'Tips and payouts'], ['St', 'Settings'],
+                ['Mt', 'Matrimony dashboard'], ['₹', 'Treats and payouts'], ['St', 'Settings'],
               ].map(([ic, label]) => (
-                <button key={label} className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]">
+                <button
+                  key={label}
+                  onClick={() => { if (label === 'Saved posts') router.push('/saved') }}
+                  className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]"
+                >
                   <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e3efee] text-[11px] font-bold text-[#0f5c5a]">{ic}</span>
                   {label}
                 </button>
@@ -565,7 +659,7 @@ export default function HomePage() {
                     {category !== 'confession' && (
                       <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
                         <input type="checkbox" checked={allowTips} onChange={e => setAllowTips(e.target.checked)} className="h-4 w-4 accent-[#0f5c5a]" />
-                        {category === 'campaign' ? 'Allow donations' : 'Allow tips'}
+                        {category === 'campaign' ? 'Allow donations' : 'Allow Treat Creator'}
                       </label>
                     )}
                     <button
@@ -623,6 +717,13 @@ export default function HomePage() {
                             </button>
                             {postMenu === p.id && (
                               <div role="menu" className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-2xl border border-[#e5eceb] bg-white p-1.5 shadow-xl">
+                                <button role="menuitem" className={MENU_ITEM} onClick={() => toggleSave(p.id)}>
+                                  <Icon name="Bookmark" size={18} fill={saved.has(p.id)} />
+                                  {saved.has(p.id) ? 'Unsave post' : 'Save post'}
+                                </button>
+                                <button role="menuitem" className={MENU_ITEM} onClick={() => { copyLink(p.id); setPostMenu(null) }}>
+                                  <Icon name="Chain" size={18} />Copy link
+                                </button>
                                 {mine && (
                                   <button role="menuitem" className={MENU_ITEM}
                                     onClick={() => { setEditingId(p.id); setEditText(p.body ?? ''); setPostMenu(null) }}>
@@ -667,14 +768,32 @@ export default function HomePage() {
                         <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{p.body}</p>
                       )}
                       <div className="mt-3 flex items-center gap-2 border-t border-[#eef3f2] pt-2 text-sm font-semibold text-[#5d7776]">
-                        <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Like</button>
-                        <button className="flex-1 rounded-lg py-2 hover:bg-[#f3f7f6]">Comment</button>
+                        <button
+                          onClick={() => toggleLike(p)}
+                          aria-pressed={liked.has(p.id)}
+                          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 hover:bg-[#f3f7f6] ${liked.has(p.id) ? 'text-[#0f5c5a]' : ''}`}
+                        >
+                          <Icon name="Like" size={18} fill={liked.has(p.id)} />
+                          Like{likeCount(p) > 0 ? ` ${likeCount(p)}` : ''}
+                        </button>
+                        <button
+                          onClick={() => notify('Comments are coming soon.')}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 hover:bg-[#f3f7f6]"
+                        >
+                          <Icon name="Comment" size={18} />Comment
+                        </button>
+                        <button
+                          onClick={() => sharePost(p)}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 hover:bg-[#f3f7f6]"
+                        >
+                          <Icon name="Share" size={18} />Share
+                        </button>
                         {p.allow_tips && (
                           <button
-                            onClick={() => setMsg('Tips are coming soon. Razorpay is not connected yet.')}
+                            onClick={() => setMsg('Treat Creator is coming soon. Razorpay is not connected yet.')}
                             className="flex-1 rounded-lg bg-[#f0a500] py-2 font-bold text-[#3a2900] hover:brightness-105"
                           >
-                            {p.category === 'campaign' ? 'Donate' : 'Send tip'}
+                            {p.category === 'campaign' ? 'Donate' : 'Treat Creator'}
                           </button>
                         )}
                       </div>
