@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AdSlot, { type Ad } from '@/components/AdSlot'
+import FriendsPanel from '@/components/FriendsPanel'
 
 type City = { name: string; state: string }
 type Profile = {
@@ -193,6 +194,7 @@ export default function HomePage() {
   const [reason, setReason] = useState('spam')
   const [details, setDetails] = useState('')
   const [reporting, setReporting] = useState(false)
+  const [reportKind, setReportKind] = useState<'post' | 'comment'>('post')
   const [toast, setToast] = useState('')
   const [adMap, setAdMap] = useState<Record<string, Ad[]>>({})
   const [liked, setLiked] = useState<Set<string>>(new Set())
@@ -336,13 +338,16 @@ export default function HomePage() {
   async function submitReport() {
     if (!reportId || !profile) return
     setReporting(true)
-    const { error } = await supabase.from('post_reports').insert({
-      post_id: reportId, reporter_id: profile.id, reason, details: details.trim() || null,
-    })
+    const isComment = reportKind === 'comment'
+    const { error } = await supabase.from(isComment ? 'comment_reports' : 'post_reports').insert(
+      isComment
+        ? { comment_id: reportId, reporter_id: profile.id, reason, details: details.trim() || null }
+        : { post_id: reportId, reporter_id: profile.id, reason, details: details.trim() || null }
+    )
     setReporting(false)
-    if (error) return notify(error.code === '23505' ? 'You already reported this post.' : error.message)
+    if (error) return notify(error.code === '23505' ? `You already reported this ${reportKind}.` : error.message)
     setReportId(null); setReason('spam'); setDetails('')
-    notify('Thanks. Our team will review this post.')
+    notify(`Thanks. Our team will review this ${reportKind}.`)
   }
 
   async function toggleComments(p: Post) {
@@ -497,13 +502,21 @@ export default function HomePage() {
             <p className="text-sm font-bold leading-tight">{cname}</p>
             <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
           </div>
-          <div className="pl-2">
+          <div className="flex gap-3 pl-2">
             <button
               onClick={() => startReply(c, cname)}
               className="text-xs font-semibold text-[#5d7776] hover:text-[#0f5c5a] hover:underline"
             >
               Reply
             </button>
+            {c.author_id !== profile.id && (
+              <button
+                onClick={() => { setReportKind('comment'); setReportId(c.id) }}
+                className="text-xs font-semibold text-[#5d7776] hover:text-[#c0392b] hover:underline"
+              >
+                Report
+              </button>
+            )}
           </div>
         </div>
         {canDelete && (
@@ -591,6 +604,11 @@ export default function HomePage() {
               )}
             </div>
 
+            <Link href="/messages" aria-label="Messages" title="Messages"
+              className="grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
+              <Icon name="Comment" size={18} />
+            </Link>
+
             <button aria-label="Notifications" title="Notifications"
               className="grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
               <Icon name="Bell" size={18} />
@@ -659,7 +677,10 @@ export default function HomePage() {
               ].map(([ic, label]) => (
                 <button
                   key={label}
-                  onClick={() => { if (label === 'Saved posts') router.push('/saved') }}
+                  onClick={() => {
+                    if (label === 'Saved posts') router.push('/saved')
+                    if (label === 'Friends') router.push('/messages')
+                  }}
                   className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]"
                 >
                   <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e3efee] text-[11px] font-bold text-[#0f5c5a]">{ic}</span>
@@ -842,7 +863,7 @@ export default function HomePage() {
                                 )}
                                 {!mine && (
                                   <button role="menuitem" className={MENU_ITEM}
-                                    onClick={() => { setReportId(p.id); setPostMenu(null) }}>
+                                    onClick={() => { setReportKind('post'); setReportId(p.id); setPostMenu(null) }}>
                                     <Icon name="Flag" size={18} />Report post
                                   </button>
                                 )}
@@ -991,14 +1012,7 @@ export default function HomePage() {
         <aside className="hidden lg:block">
           <div className="sticky top-24 flex h-[calc(100vh-7rem)] flex-col">
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin]">
-              <section className="rounded-2xl border border-[#e5eceb] p-3">
-                <h3 className="mb-1 text-sm font-extrabold">Friend requests</h3>
-                <p className="text-sm text-[#5d7776]">No pending requests.</p>
-              </section>
-              <section className="rounded-2xl border border-[#e5eceb] p-3">
-                <h3 className="mb-1 text-sm font-extrabold">Friends online</h3>
-                <p className="text-sm text-[#5d7776]">Friends you add will show up here.</p>
-              </section>
+              <FriendsPanel me={profile.id} onOpenChat={id => router.push(`/messages?with=${id}`)} />
             </div>
             <div className="shrink-0 space-y-3 pt-3">
               <AdSlot ads={adMap.right_1} cityName={cityName} imgClass="aspect-[2/1]" boxClass="min-h-[150px]" />
@@ -1014,7 +1028,7 @@ export default function HomePage() {
           onMouseDown={e => { if (e.target === e.currentTarget) setReportId(null) }}
         >
           <div role="dialog" aria-modal="true" aria-labelledby="report-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-            <h2 id="report-title" className="text-lg font-extrabold">Report this post</h2>
+            <h2 id="report-title" className="text-lg font-extrabold">{`Report this ${reportKind}`}</h2>
             <p className="mt-1 text-sm text-[#5d7776]">Why are you reporting it?</p>
             <div className="mt-3 space-y-1">
               {REASONS.map(r => (
