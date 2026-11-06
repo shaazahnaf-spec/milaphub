@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AdSlot, { type Ad } from '@/components/AdSlot'
 import FriendsPanel from '@/components/FriendsPanel'
+import { compressImage, storagePath } from '@/lib/image'
 
 type City = { name: string; state: string }
 type Profile = {
@@ -28,6 +29,7 @@ type Post = {
   status: string
   created_at: string
   edited_at: string | null
+  media_url: string | null
   post_likes: { count: number }[] | null
   post_comments: { count: number }[] | null
   profiles: Author | Author[] | null
@@ -181,6 +183,8 @@ export default function HomePage() {
 
   useOutside(menuRef, menuOpen, setMenuOpen)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [photo, setPhoto] = useState<{ blob: Blob; ext: string; preview: string } | null>(null)
   const emojiRef = useRef<HTMLDivElement>(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
 
@@ -248,7 +252,7 @@ export default function HomePage() {
     if (!profile?.city_id) return
     let q = supabase
       .from('posts')
-      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, post_likes(count), post_comments(count), profiles!author_id(full_name, username)')
+      .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, media_url, post_likes(count), post_comments(count), profiles!author_id(full_name, username)')
       .eq('city_id', profile.city_id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -290,24 +294,66 @@ export default function HomePage() {
       })
   }, [supabase, profile])
 
+  async function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return setError('Please choose a JPG, PNG or WEBP photo.')
+    }
+    if (file.size > 20 * 1024 * 1024) return setError('That photo is too large. Please choose one under 20 MB.')
+    setError('')
+    try {
+      const { blob, ext } = await compressImage(file)
+      if (photo) URL.revokeObjectURL(photo.preview)
+      setPhoto({ blob, ext, preview: URL.createObjectURL(blob) })
+    } catch {
+      setError('Could not read that photo. Please try another one.')
+    }
+  }
+
+  function removePhoto() {
+    if (photo) URL.revokeObjectURL(photo.preview)
+    setPhoto(null)
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!body.trim() || !profile) return
+    if ((!body.trim() && !photo) || !profile) return
     if (category === 'campaign' && !profile.is_verified_ngo) {
       return setError('Only verified NGOs can post campaigns.')
     }
     setPosting(true); setError(''); setMsg('')
+
+    let mediaUrl: string | null = null
+    let uploadedPath: string | null = null
+    if (photo) {
+      const path = `${profile.id}/${crypto.randomUUID()}.${photo.ext}`
+      const { error: upErr } = await supabase.storage
+        .from('posts')
+        .upload(path, photo.blob, { contentType: photo.blob.type, cacheControl: '31536000' })
+      if (upErr) { setPosting(false); return setError(upErr.message) }
+      uploadedPath = path
+      mediaUrl = supabase.storage.from('posts').getPublicUrl(path).data.publicUrl
+    }
+
     const cat = category === 'all' ? 'general' : category
     const { error } = await supabase.from('posts').insert({
       author_id: profile.id,
       city_id: profile.city_id,
       category: cat,
-      body: body.trim(),
+      body: body.trim() || null,
+      media_url: mediaUrl,
       allow_tips: cat === 'confession' ? false : allowTips,
     })
+    if (error) {
+      if (uploadedPath) await supabase.storage.from('posts').remove([uploadedPath])
+      setPosting(false)
+      return setError(error.message)
+    }
     setPosting(false)
-    if (error) return setError(error.message)
     setBody('')
+    removePhoto()
     if (taRef.current) taRef.current.style.height = 'auto'
     loadPosts()
   }
@@ -318,6 +364,8 @@ export default function HomePage() {
     const { data, error } = await supabase.from('posts').delete().eq('id', id).select('id')
     if (error) return notify(error.message)
     if (!data || data.length === 0) return notify('You are not allowed to delete this post.')
+    const path = storagePath(posts.find(p => p.id === id)?.media_url)
+    if (path) await supabase.storage.from('posts').remove([path])
     setPosts(list => list.filter(p => p.id !== id))
     notify('Post deleted.')
   }
@@ -756,8 +804,8 @@ export default function HomePage() {
                       <Icon name="Video" size={22} />
                     </button>
                     <button type="button" title="Photo" aria-label="Add photo"
-                      onClick={() => setMsg('Photo uploads are coming soon.')}
-                      className="hidden h-10 w-10 place-items-center rounded-full text-[#16a34a] hover:bg-[#f3f7f6] sm:grid">
+                      onClick={() => fileRef.current?.click()}
+                      className="grid h-10 w-10 place-items-center rounded-full text-[#16a34a] hover:bg-[#f3f7f6]">
                       <Icon name="Photo" size={22} />
                     </button>
                     <div className="relative" ref={emojiRef}>
@@ -782,7 +830,23 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {body.trim() && (
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={pickPhoto} className="sr-only" tabIndex={-1} aria-hidden="true" />
+                {photo && (
+                  <div className="relative ml-[52px] mt-3 overflow-hidden rounded-xl bg-[#f3f7f6]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.preview} alt="Selected photo preview" className="max-h-72 w-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      aria-label="Remove photo"
+                      className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-lg leading-none text-white hover:bg-black/80"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
+                {(body.trim() || photo) && (
                   <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-[#eef3f2] pt-3">
                     <span className="rounded-full bg-[#e3efee] px-3 py-1.5 text-sm font-semibold text-[#0f5c5a]">
                       {`Category: ${current.label}`}
@@ -896,7 +960,17 @@ export default function HomePage() {
                           </div>
                         </div>
                       ) : (
-                        <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{p.body}</p>
+                        <>
+                          {p.body && (
+                            <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">{p.body}</p>
+                          )}
+                          {p.media_url && (
+                            <a href={p.media_url} target="_blank" rel="noopener noreferrer" className="mt-3 block overflow-hidden rounded-xl bg-[#f3f7f6]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={p.media_url} alt="Photo shared in this post" loading="lazy" className="max-h-[520px] w-full object-contain" />
+                            </a>
+                          )}
+                        </>
                       )}
                       <div className="mt-3 flex items-center gap-2 border-t border-[#eef3f2] pt-2 text-sm font-semibold text-[#5d7776]">
                         <button
