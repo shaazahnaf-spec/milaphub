@@ -5,9 +5,10 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { storagePath } from '@/lib/image'
 
 type Author = { full_name: string | null; username: string | null }
-type PostRef = { id: string; body: string | null; category: string; profiles: Author | Author[] | null }
+type PostRef = { id: string; body: string | null; category: string; media_url: string | null; profiles: Author | Author[] | null }
 type ReportRow = {
   id: string
   post_id: string
@@ -19,6 +20,7 @@ type Group = {
   postId: string
   body: string
   category: string
+  media: string | null
   author: string
   reports: { reason: string; details: string | null }[]
 }
@@ -116,7 +118,7 @@ export default function AdminPage() {
   const loadReports = useCallback(async () => {
     const { data, error } = await supabase
       .from('post_reports')
-      .select('id, post_id, reason, details, posts(id, body, category, profiles!author_id(full_name, username))')
+      .select('id, post_id, reason, details, posts(id, body, category, media_url, profiles!author_id(full_name, username))')
       .order('created_at', { ascending: false })
     if (error) return notify(error.message)
     const map = new Map<string, Group>()
@@ -128,6 +130,7 @@ export default function AdminPage() {
         postId: r.post_id,
         body: post.body ?? '',
         category: post.category,
+        media: post.media_url,
         author: a ? `${a.full_name ?? 'User'} (@${a.username ?? 'user'})` : 'Unknown',
         reports: [],
       }
@@ -186,10 +189,12 @@ export default function AdminPage() {
     init()
   }, [supabase, router, loadReports, loadCommentReports, loadAds])
 
-  async function deletePost(postId: string) {
+  async function deletePost(postId: string, media: string | null) {
     if (!window.confirm('Delete this post permanently?')) return
     const { error } = await supabase.from('posts').delete().eq('id', postId)
     if (error) return notify(error.message)
+    const path = storagePath(media)
+    if (path) await supabase.storage.from('posts').remove([path])
     notify('Post deleted.')
     loadReports()
   }
@@ -337,7 +342,13 @@ export default function AdminPage() {
                       {g.reports.length} {g.reports.length === 1 ? 'report' : 'reports'}
                     </span>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[#f3f7f6] p-3 text-[15px]">{g.body}</p>
+                  {g.body && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[#f3f7f6] p-3 text-[15px]">{g.body}</p>}
+                  {g.media && (
+                    <div className="mt-3 overflow-hidden rounded-xl bg-[#f3f7f6]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={g.media} alt="Reported photo" className="max-h-72 w-full object-contain" />
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
                     {Object.entries(counts).map(([k, n]) => (
                       <span key={k} className="rounded-full border border-[#dbe5e4] px-3 py-1">{REASON_LABEL[k] ?? k}: {n}</span>
@@ -350,7 +361,7 @@ export default function AdminPage() {
                   )}
                   <div className="mt-4 flex justify-end gap-2">
                     <button onClick={() => dismiss(g.postId)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Dismiss reports</button>
-                    <button onClick={() => deletePost(g.postId)} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Delete post</button>
+                    <button onClick={() => deletePost(g.postId, g.media)} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Delete post</button>
                   </div>
                 </article>
               )
