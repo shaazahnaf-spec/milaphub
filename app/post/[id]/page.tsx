@@ -8,6 +8,7 @@ type Row = {
   id: string
   body: string | null
   category: string
+  media_url: string | null
   profiles: Author | Author[] | null
 }
 
@@ -20,7 +21,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data } = await supabase
     .from('posts')
-    .select('id, body, category, profiles!author_id(full_name, username)')
+    .select('id, body, category, media_url, profiles!author_id(full_name, username)')
     .eq('id', id)
     .maybeSingle()
   if (!data) notFound()
@@ -50,7 +51,15 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
             </span>
           )}
         </div>
-        <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-[#12302f]">{post.body}</p>
+        {post.body && (
+          <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-[#12302f]">{post.body}</p>
+        )}
+        {post.media_url && (
+          <div className="mt-4 overflow-hidden rounded-xl bg-[#f3f7f6]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={post.media_url} alt="Photo shared in this post" className="max-h-[640px] w-full object-contain" />
+          </div>
+        )}
       </article>
     </main>
   )
