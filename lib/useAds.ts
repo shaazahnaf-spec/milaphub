@@ -1,3 +1,4 @@
+// FILE: lib/useAds.ts  (GitHub mein is path par paste karo)
 'use client'
 
 import { useEffect, useState } from 'react'
