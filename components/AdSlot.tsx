@@ -15,16 +15,17 @@ export type Ad = {
   advertiser: string | null
 }
 
-type Props = { ads?: Ad[]; cityName: string; imgClass?: string; boxClass?: string }
+type Props = { ads?: Ad[]; cityName: string; imgClass?: string; boxClass?: string; startAt?: number }
 
 export default function AdSlot({
   ads = [],
   cityName,
   imgClass = 'aspect-[4/3]',
   boxClass = 'min-h-[140px]',
+  startAt = 0,
 }: Props) {
   const [supabase] = useState(() => createClient())
-  const [idx, setIdx] = useState(0)
+  const [idx, setIdx] = useState(startAt)
   const [fade, setFade] = useState(true)
   const [paused, setPaused] = useState(false)
   const [reduced, setReduced] = useState(false)
