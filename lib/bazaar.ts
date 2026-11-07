@@ -1,4 +1,4 @@
-// FILE: lib/bazaar.ts  (GitHub mein is path par paste karo)
+// FILE: lib/bazaar.ts
 
 export const CATEGORIES = [
   { id: 'mobiles', label: 'Mobiles and tablets' },
@@ -15,6 +15,12 @@ export const CATEGORIES = [
 
 export const categoryLabel = (id: string) => CATEGORIES.find(c => c.id === id)?.label ?? id
 export const inr = (n: number) => (n === 0 ? 'Free' : `₹${n.toLocaleString('en-IN')}`)
+
+// Sell listing mein price, Wanted listing mein budget
+export const priceLabel = (type: string, price: number) =>
+  type === 'wanted'
+    ? price === 0 ? 'Open budget' : `Budget ₹${price.toLocaleString('en-IN')}`
+    : inr(price)
 
 export const STATUS: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pending approval', cls: 'bg-[#fff4d6] text-[#7a5600]' },
@@ -39,6 +45,9 @@ export type Listing = {
   image_urls: string[]
   status: string
   reject_reason: string | null
+  listing_type: string
+  lat: number | null
+  lng: number | null
   profiles?: Person | Person[] | null
 }
 
@@ -49,4 +58,28 @@ export const one = <T,>(v: T | T[] | null | undefined): T | null =>
 export function bazaarPath(url: string): string | null {
   const part = url.split('/object/public/bazaar/')[1]
   return part ? decodeURIComponent(part.split('?')[0]) : null
+}
+
+// Locality ka approximate coordinate (OpenStreetMap Nominatim, free). Database mein ~1 km tak round hota hai.
+export async function geocode(query: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&q=${encodeURIComponent(query)}`,
+      { headers: { Accept: 'application/json' } }
+    )
+    if (!res.ok) return null
+    const arr = (await res.json()) as { lat: string; lon: string }[]
+    if (!arr[0]) return null
+    const lat = Number(arr[0].lat)
+    const lng = Number(arr[0].lon)
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+  } catch {
+    return null
+  }
+}
+
+// Chat ke quick reply chips
+export const CHIPS: Record<string, string[]> = {
+  sell: ['Is this available?', 'Is the price negotiable?', 'Where can we meet?'],
+  wanted: ['I have this item', 'What is your budget?', 'I can share photos'],
 }
