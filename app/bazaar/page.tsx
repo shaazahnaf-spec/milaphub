@@ -1,4 +1,4 @@
-// FILE: app/bazaar/page.tsx
+// FILE: app/bazaar/page.tsx  (GitHub mein is path par paste karo)
 'use client'
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
@@ -163,6 +163,7 @@ export default function BazaarPage() {
                 <AdSlot
                   ads={ads.bazaar_grid}
                   cityName={cityName}
+                  startAt={i === 3 ? 0 : 1}
                   imgClass="aspect-square"
                   boxClass="min-h-[0px]"
                 />
