@@ -216,6 +216,10 @@ export default function MessagesPage() {
                   type="submit" 
                   disabled={sending || !text.trim()} 
                   className="rounded-full bg-[#0f5c5a] px-4 py-2 text-sm font-bold text-white hover:bg-[#0c4947] disabled:opacity-50"
+                 <button 
+                  type="submit" 
+                  disabled={sending || !text.trim()} 
+                  className="rounded-full bg-[#0f5c5a] px-4 py-2 text-sm font-bold text-white hover:bg-[#0c4947] disabled:opacity-50"
                 >
                   {sending ? '...' : 'Send'}
                 </button>
@@ -223,7 +227,3 @@ export default function MessagesPage() {
             </>
           )}
         </section>
-      </div>
-    </div>
-  )
-}
