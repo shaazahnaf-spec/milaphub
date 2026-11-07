@@ -41,6 +41,7 @@ type CGroup = {
 }
 type PendingListing = {
   id: string
+  listing_type: string
   title: string
   price: number
   category: string
@@ -98,6 +99,8 @@ const SLOTS = [
   { id: 'left_1', label: 'Left sidebar ad' },
   { id: 'bazaar_top', label: 'Bazaar, top banner' },
   { id: 'bazaar_grid', label: 'Bazaar, inside listings and listing page' },
+  { id: 'bazaar_side_left', label: 'Bazaar, left tall banner (large desktop)' },
+  { id: 'bazaar_side_right', label: 'Bazaar, right tall banner (large desktop)' },
 ]
 const slotLabel = (id: string) => SLOTS.find(s => s.id === id)?.label ?? id
 
@@ -109,6 +112,8 @@ const SIZE_HINT: Record<string, string> = {
   left_1: 'Best size 1280 x 800 px (16:10)',
   bazaar_top: 'Best size 1600 x 400 px (4:1, wide banner)',
   bazaar_grid: 'Best size 800 x 800 px (square)',
+  bazaar_side_left: 'Best size 600 x 1000 px (3:5, tall banner)',
+  bazaar_side_right: 'Best size 600 x 1000 px (3:5, tall banner)',
 }
 const typeFromUrl = (u: string) => (/\.(mp4|webm)(\?.*)?$/i.test(u.trim()) ? 'video' : 'image')
 
@@ -201,7 +206,7 @@ export default function AdminPage() {
   const loadBazaar = useCallback(async () => {
     const { data, error } = await supabase
       .from('listings')
-      .select('id, title, price, category, condition, locality, description, image_urls, profiles!seller_id(full_name, username)')
+      .select('id, listing_type, title, price, category, condition, locality, description, image_urls, profiles!seller_id(full_name, username)')
       .eq('status', 'pending')
       .order('created_at', { ascending: true })
     if (error) return notify(error.message)
@@ -525,6 +530,9 @@ export default function AdminPage() {
                   <article key={l.id} className="rounded-2xl border border-[#e5eceb] p-4 shadow-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold">{l.title}</span>
+                      {l.listing_type === 'wanted' && (
+                        <span className="rounded-full bg-[#f0a500] px-3 py-1 text-xs font-extrabold text-[#3a2900]">WANTED</span>
+                      )}
                       <span className="rounded-full bg-[#e3efee] px-3 py-1 text-xs font-bold text-[#0f5c5a]">{categoryLabel(l.category)}</span>
                       <span className="ml-auto text-lg font-extrabold">{inr(l.price)}</span>
                     </div>
