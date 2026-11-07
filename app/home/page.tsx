@@ -538,6 +538,11 @@ export default function HomePage() {
   const name = profile.full_name ?? 'User'
   const current = CATEGORIES.find(c => c.id === category) ?? CATEGORIES[0]
 
+  const selectTab = (t: string) => {
+    if (t === 'Bazaar') router.push('/bazaar')
+    else setTab(t)
+  }
+
   const renderComment = (p: Post, c: Comment, isReply: boolean) => {
     const ca = one(c.profiles)
     const cname = ca?.full_name ?? 'MilapHub user'
@@ -605,7 +610,7 @@ export default function HomePage() {
 
           <nav className="hidden h-full md:flex" aria-label="Main">
             {TABS.map(t => (
-              <button key={t} onClick={() => setTab(t)} title={t} aria-label={t}
+              <button key={t} onClick={() => selectTab(t)} title={t} aria-label={t}
                 aria-current={tab === t} className={tabClass(t) + ' w-20 lg:w-24'}>
                 <Icon name={t} />
               </button>
@@ -699,7 +704,7 @@ export default function HomePage() {
         {/* Mobile tabs */}
         <nav className="flex border-t border-[#eef3f2] md:hidden" aria-label="Main mobile">
           {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} title={t} aria-label={t}
+            <button key={t} onClick={() => selectTab(t)} title={t} aria-label={t}
               aria-current={tab === t} className={tabClass(t) + ' h-12 flex-1'}>
               <Icon name={t} />
             </button>
