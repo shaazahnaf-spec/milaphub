@@ -7,7 +7,14 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import FriendsPanel from '@/components/FriendsPanel'
 
-type Msg = { id: string; sender_id: string; receiver_id: string; body: string; created_at: string }
+type Msg = { 
+  id: string; 
+  sender_id: string; 
+  receiver_id: string; 
+  conversation_id?: string; 
+  body: string; 
+  created_at: string;
+}
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -48,7 +55,7 @@ export default function MessagesPage() {
 
     async function load() {
       const { data, error } = await (supabase.from('messages') as any)
-        .select('id, sender_id, receiver_id, body, created_at')
+        .select('id, sender_id, receiver_id, conversation_id, body, created_at')
         .or(`and(sender_id.eq.${meId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${meId})`)
         .order('created_at', { ascending: false })
         .limit(100)
@@ -96,14 +103,17 @@ export default function MessagesPage() {
     if (!clean || !me || !recipientId) return
     setSending(true); setError('')
 
-    // Direct insert with 'as any' bypass to prevent type errors completely
+    // Fallback dynamic connection key creation logic for database security mapping
+    const computedConvId = `${[me, recipientId].sort().join('_')}`
+
     const { data, error } = await (supabase.from('messages') as any)
       .insert({
         sender_id: me,
         receiver_id: recipientId,
+        conversation_id: computedConvId,
         body: clean
       })
-      .select('id, sender_id, receiver_id, body, created_at')
+      .select('id, sender_id, receiver_id, conversation_id, body, created_at')
       .single()
 
     setSending(false)
@@ -195,13 +205,14 @@ export default function MessagesPage() {
                   maxLength={2000}
                   placeholder="Write a message..."
                   aria-label="Write a message"
-                  className="min-w-0 flex-1 rounded-full bg-[#f3f7f6] px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                  className="flex-1 rounded-full border border-[#dbe5e4] bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:border-[#0f5c5a] focus:bg-white"
                 />
-                <button
-                  disabled={sending || !text.trim()}
-                  className="rounded-full bg-[#0f5c5a] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50"
+                <button 
+                  type="submit" 
+                  disabled={sending || !text.trim()} 
+                  className="rounded-full bg-[#0f5c5a] px-4 py-2 text-sm font-bold text-white hover:bg-[#0c4947] disabled:opacity-50"
                 >
-                  Send
+                  {sending ? '...' : 'Send'}
                 </button>
               </form>
             </>
