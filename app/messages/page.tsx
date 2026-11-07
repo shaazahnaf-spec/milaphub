@@ -1,4 +1,4 @@
-// FILE: app/messages/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/messages/page.tsx
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
@@ -39,7 +39,6 @@ export default function MessagesPage() {
     init()
   }, [supabase, router])
 
-  // Conversation load karo aur nayi messages realtime mein suno
   useEffect(() => {
     if (!me || !active) return
     const meId = me
@@ -93,23 +92,18 @@ export default function MessagesPage() {
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    const body = text.trim()
-    if (!body || !me || !active) return
+    const clean = text.trim()
+    if (!clean || !me || !active) return
     setSending(true); setError('')
     
-    // Yahan payload object banakar insert kiya hai taaki TypeScript type conflict na ho
-    const payload: { sender_id: string; receiver_id: string; body: string; [key: string]: any } = {
-      sender_id: me,
-      receiver_id: active,
-      body
-    }
+    const row = { sender_id: me, receiver_id: active, body: clean }
 
     const { data, error } = await supabase
       .from('messages')
-      .insert(payload)
+      .insert(row as any) // <--- TypeScript check bypass kar diya hai
       .select('id, sender_id, receiver_id, body, created_at')
       .single()
-      
+
     setSending(false)
     if (error) {
       return setError(error.message.includes('row-level') ? 'You can only message your friends.' : error.message)
