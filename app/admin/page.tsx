@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { storagePath } from '@/lib/image'
+import { categoryLabel, inr, bazaarPath } from '@/lib/bazaar'
 
 type Author = { full_name: string | null; username: string | null }
 type PostRef = { id: string; body: string | null; category: string; media_url: string | null; profiles: Author | Author[] | null }
@@ -36,6 +37,32 @@ type CGroup = {
   commentId: string
   body: string
   author: string
+  reports: { reason: string; details: string | null }[]
+}
+type PendingListing = {
+  id: string
+  title: string
+  price: number
+  category: string
+  condition: string
+  locality: string | null
+  description: string | null
+  image_urls: string[]
+  profiles: Author | Author[] | null
+}
+type ListingRef = { id: string; title: string; price: number; image_urls: string[]; status: string }
+type LReportRow = {
+  id: string
+  listing_id: string
+  reason: string
+  details: string | null
+  listings: ListingRef | ListingRef[] | null
+}
+type LGroup = {
+  listingId: string
+  title: string
+  price: number
+  images: string[]
   reports: { reason: string; details: string | null }[]
 }
 type CityRef = { name: string }
@@ -69,6 +96,8 @@ const SLOTS = [
   { id: 'right_1', label: 'Right sidebar, upper ad' },
   { id: 'right_2', label: 'Right sidebar, lower ad' },
   { id: 'left_1', label: 'Left sidebar ad' },
+  { id: 'bazaar_top', label: 'Bazaar, top banner' },
+  { id: 'bazaar_grid', label: 'Bazaar, inside listings and listing page' },
 ]
 const slotLabel = (id: string) => SLOTS.find(s => s.id === id)?.label ?? id
 
@@ -78,6 +107,8 @@ const SIZE_HINT: Record<string, string> = {
   right_1: 'Best size 1200 x 600 px (2:1)',
   right_2: 'Best size 1200 x 600 px (2:1)',
   left_1: 'Best size 1280 x 800 px (16:10)',
+  bazaar_top: 'Best size 1600 x 400 px (4:1, wide banner)',
+  bazaar_grid: 'Best size 800 x 800 px (square)',
 }
 const typeFromUrl = (u: string) => (/\.(mp4|webm)(\?.*)?$/i.test(u.trim()) ? 'video' : 'image')
 
@@ -88,11 +119,15 @@ export default function AdminPage() {
   const router = useRouter()
 
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
-  const [tab, setTab] = useState<'reports' | 'comments' | 'ads'>('reports')
+  const [tab, setTab] = useState<'reports' | 'comments' | 'ads' | 'bazaar'>('reports')
   const [groups, setGroups] = useState<Group[]>([])
   const [cGroups, setCGroups] = useState<CGroup[]>([])
   const [ads, setAds] = useState<Ad[]>([])
   const [cities, setCities] = useState<City[]>([])
+  const [isSuper, setIsSuper] = useState(false)
+  const [canBazaar, setCanBazaar] = useState(false)
+  const [pending, setPending] = useState<PendingListing[]>([])
+  const [lGroups, setLGroups] = useState<LGroup[]>([])
   const [nowMs, setNowMs] = useState(0)
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
@@ -163,6 +198,31 @@ export default function AdminPage() {
     setCGroups(Array.from(map.values()).sort((x, y) => y.reports.length - x.reports.length))
   }, [supabase, notify])
 
+  const loadBazaar = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('listings')
+      .select('id, title, price, category, condition, locality, description, image_urls, profiles!seller_id(full_name, username)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+    if (error) return notify(error.message)
+    setPending((data ?? []) as unknown as PendingListing[])
+
+    const { data: rep, error: e2 } = await supabase
+      .from('listing_reports')
+      .select('id, listing_id, reason, details, listings(id, title, price, image_urls, status)')
+      .order('created_at', { ascending: false })
+    if (e2) return notify(e2.message)
+    const map = new Map<string, LGroup>()
+    for (const r of (rep ?? []) as unknown as LReportRow[]) {
+      const l = one(r.listings)
+      if (!l || l.status !== 'approved') continue
+      const g = map.get(r.listing_id) ?? { listingId: l.id, title: l.title, price: l.price, images: l.image_urls, reports: [] }
+      g.reports.push({ reason: r.reason, details: r.details })
+      map.set(r.listing_id, g)
+    }
+    setLGroups(Array.from(map.values()).sort((a, b) => b.reports.length - a.reports.length))
+  }, [supabase, notify])
+
   const loadAds = useCallback(async () => {
     const { data, error } = await supabase
       .from('ads')
@@ -178,16 +238,28 @@ export default function AdminPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
       const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-      if (me?.role !== 'admin') { setState('denied'); return }
+      const superAdmin = me?.role === 'admin'
+      let bazaar = superAdmin
+      if (!superAdmin) {
+        const { data: sc } = await supabase.from('admin_scopes').select('scope').eq('user_id', user.id)
+        bazaar = (sc ?? []).some(r => r.scope === 'bazaar')
+      }
+      if (!superAdmin && !bazaar) { setState('denied'); return }
+      setIsSuper(superAdmin)
+      setCanBazaar(bazaar)
+      setTab(superAdmin ? 'reports' : 'bazaar')
       setState('ok')
-      loadReports()
-      loadCommentReports()
-      loadAds()
-      supabase.from('cities').select('id, name, state').order('name')
-        .then(({ data }) => setCities((data ?? []) as City[]))
+      if (superAdmin) {
+        loadReports()
+        loadCommentReports()
+        loadAds()
+        supabase.from('cities').select('id, name, state').order('name')
+          .then(({ data }) => setCities((data ?? []) as City[]))
+      }
+      if (bazaar) loadBazaar()
     }
     init()
-  }, [supabase, router, loadReports, loadCommentReports, loadAds])
+  }, [supabase, router, loadReports, loadCommentReports, loadAds, loadBazaar])
 
   async function deletePost(postId: string, media: string | null) {
     if (!window.confirm('Delete this post permanently?')) return
@@ -241,6 +313,41 @@ export default function AdminPage() {
     if (error) return notify(error.message)
     notify('Reports dismissed.')
     loadCommentReports()
+  }
+
+  async function approveListing(id: string) {
+    const { data, error } = await supabase.from('listings').update({ status: 'approved' }).eq('id', id).select('id')
+    if (error) return notify(error.message)
+    if (!data || data.length === 0) return notify('Could not approve this listing.')
+    notify('Listing approved.')
+    loadBazaar()
+  }
+
+  async function rejectListing(id: string) {
+    const reason = window.prompt('Why is this listing rejected? The seller will see this reason.')
+    if (reason === null) return
+    const { error } = await supabase
+      .from('listings').update({ status: 'rejected', reject_reason: reason.trim() || null }).eq('id', id)
+    if (error) return notify(error.message)
+    notify('Listing rejected.')
+    loadBazaar()
+  }
+
+  async function removeListing(id: string, images: string[]) {
+    if (!window.confirm('Remove this listing from Bazaar?')) return
+    const { error } = await supabase.from('listings').update({ status: 'removed' }).eq('id', id)
+    if (error) return notify(error.message)
+    const paths = images.map(bazaarPath).filter((p): p is string => !!p)
+    if (paths.length) await supabase.storage.from('bazaar').remove(paths)
+    notify('Listing removed.')
+    loadBazaar()
+  }
+
+  async function dismissListing(id: string) {
+    const { error } = await supabase.from('listing_reports').delete().eq('listing_id', id)
+    if (error) return notify(error.message)
+    notify('Reports dismissed.')
+    loadBazaar()
   }
 
   async function createAd(e: React.FormEvent) {
@@ -301,7 +408,7 @@ export default function AdminPage() {
     )
   }
 
-  const tabBtn = (t: 'reports' | 'comments' | 'ads', label: string) => (
+  const tabBtn = (t: 'reports' | 'comments' | 'ads' | 'bazaar', label: string) => (
     <button
       onClick={() => setTab(t)}
       className={`rounded-full px-5 py-2 text-sm font-bold ${tab === t ? 'bg-[#0f5c5a] text-white' : 'bg-[#f3f7f6] text-[#12302f] hover:bg-[#e3efee]'}`}
@@ -321,9 +428,10 @@ export default function AdminPage() {
 
       <main className="mx-auto max-w-5xl space-y-5 px-4 py-6">
         <div className="flex gap-2">
-          {tabBtn('reports', `Reports (${groups.length})`)}
-          {tabBtn('comments', `Comment reports (${cGroups.length})`)}
-          {tabBtn('ads', `Ads (${ads.length})`)}
+          {isSuper && tabBtn('reports', `Reports (${groups.length})`)}
+          {isSuper && tabBtn('comments', `Comment reports (${cGroups.length})`)}
+          {isSuper && tabBtn('ads', `Ads (${ads.length})`)}
+          {canBazaar && tabBtn('bazaar', `Bazaar (${pending.length})`)}
         </div>
 
         {tab === 'reports' && (
@@ -403,6 +511,90 @@ export default function AdminPage() {
               )
             })
           )
+        )}
+
+        {tab === 'bazaar' && canBazaar && (
+          <>
+            <h2 className="text-lg font-extrabold">Waiting for approval ({pending.length})</h2>
+            {pending.length === 0 ? (
+              <p className="rounded-2xl border border-[#e5eceb] p-10 text-center text-[#5d7776]">No listings waiting. All clear.</p>
+            ) : (
+              pending.map(l => {
+                const s = one(l.profiles)
+                return (
+                  <article key={l.id} className="rounded-2xl border border-[#e5eceb] p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold">{l.title}</span>
+                      <span className="rounded-full bg-[#e3efee] px-3 py-1 text-xs font-bold text-[#0f5c5a]">{categoryLabel(l.category)}</span>
+                      <span className="ml-auto text-lg font-extrabold">{inr(l.price)}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-[#5d7776]">
+                      Seller: {s?.full_name ?? 'Unknown'} (@{s?.username ?? 'user'}) · {l.condition === 'new' ? 'New' : 'Used'}
+                      {l.locality ? ` · ${l.locality}` : ''}
+                    </p>
+                    {l.description && (
+                      <p className="mt-2 whitespace-pre-wrap rounded-xl bg-[#f3f7f6] p-3 text-sm">{l.description}</p>
+                    )}
+                    <div className="mt-3 flex gap-2 overflow-x-auto">
+                      {l.image_urls.map(u => (
+                        <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="block h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-[#f3f7f6]">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" className="h-full w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button onClick={() => rejectListing(l.id)} className="rounded-full px-5 py-2 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">Reject</button>
+                      <button onClick={() => approveListing(l.id)} className="rounded-full bg-[#0f5c5a] px-6 py-2 text-sm font-bold text-white hover:bg-[#0b4846]">Approve</button>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+
+            <h2 className="pt-4 text-lg font-extrabold">Reported listings ({lGroups.length})</h2>
+            {lGroups.length === 0 ? (
+              <p className="rounded-2xl border border-[#e5eceb] p-10 text-center text-[#5d7776]">No reported listings. All clear.</p>
+            ) : (
+              lGroups.map(g => {
+                const counts: Record<string, number> = {}
+                g.reports.forEach(r => { counts[r.reason] = (counts[r.reason] ?? 0) + 1 })
+                return (
+                  <article key={g.listingId} className="rounded-2xl border border-[#e5eceb] p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold">{g.title}</span>
+                      <span className="text-sm font-semibold">{inr(g.price)}</span>
+                      <span className="ml-auto rounded-full bg-[#fdecea] px-3 py-1 text-xs font-bold text-[#c0392b]">
+                        {g.reports.length} {g.reports.length === 1 ? 'report' : 'reports'}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex gap-2 overflow-x-auto">
+                      {g.images.map(u => (
+                        <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="block h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-[#f3f7f6]">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" className="h-full w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                      {Object.entries(counts).map(([k, n]) => (
+                        <span key={k} className="rounded-full border border-[#dbe5e4] px-3 py-1">{REASON_LABEL[k] ?? k}: {n}</span>
+                      ))}
+                    </div>
+                    {g.reports.some(r => r.details) && (
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[#5d7776]">
+                        {g.reports.filter(r => r.details).map((r, i) => <li key={i}>{r.details}</li>)}
+                      </ul>
+                    )}
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button onClick={() => dismissListing(g.listingId)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Dismiss reports</button>
+                      <button onClick={() => removeListing(g.listingId, g.images)} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Remove listing</button>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </>
         )}
 
         {tab === 'ads' && (
