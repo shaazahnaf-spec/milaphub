@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AdSlot, { type Ad } from '@/components/AdSlot'
 import FriendsPanel from '@/components/FriendsPanel'
+import NotificationBell from '@/components/NotificationBell'
 import { compressImage, storagePath } from '@/lib/image'
 
 type City = { name: string; state: string }
@@ -662,10 +663,7 @@ export default function HomePage() {
               <Icon name="Comment" size={18} />
             </Link>
 
-            <button aria-label="Notifications" title="Notifications"
-              className="grid h-10 w-10 place-items-center rounded-full bg-[#f3f7f6] hover:bg-[#e3efee]">
-              <Icon name="Bell" size={18} />
-            </button>
+            <NotificationBell />
 
             {/* Profile menu */}
             <div className="relative" ref={profileRef}>
