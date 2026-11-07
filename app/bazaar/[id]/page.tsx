@@ -248,7 +248,7 @@ export default function ListingPage() {
             </p>
           </div>
 
-          <AdSlot ads={ads.bazaar_grid} cityName={cityName} imgClass="aspect-[16/9]" boxClass="min-h-[0px]" startAt={2} />
+          <AdSlot ads={ads.bazaar_grid} cityName={cityName} imgClass="aspect-[16/9]" boxClass="min-h-[0px]" />
         </div>
       </main>
 
