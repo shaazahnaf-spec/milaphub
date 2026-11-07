@@ -1,4 +1,4 @@
-// FILE: app/bazaar/page.tsx (GitHub mein is path par paste karo)
+// FILE: app/bazaar/page.tsx
 'use client'
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
@@ -131,5 +131,47 @@ export default function BazaarPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {items.map((l, i) => (
               <Fragment key={l.id}>
-              <Link
-                href={
+                <Link
+                  href={`/bazaar/${l.id}`}
+                  className="overflow-hidden rounded-2xl border border-[#e5eceb] bg-white shadow-sm transition hover:shadow-md"
+                >
+                  <div className="aspect-square bg-[#f3f7f6]">
+                    {l.image_urls[0] && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.image_urls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    )}
+                  </div>
+                  <div className="p-3">
+                    <p className="font-extrabold">{inr(l.price)}</p>
+                    <p className="line-clamp-2 text-sm">{l.title}</p>
+                    <p className="mt-1 truncate text-xs text-[#5d7776]">
+                      {[l.locality, categoryLabel(l.category)].filter(Boolean).join(' · ')}
+                    </p>
+                    {view === 'mine' && (
+                      <>
+                        <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold ${STATUS[l.status]?.cls ?? ''}`}>
+                          {STATUS[l.status]?.label ?? l.status}
+                        </span>
+                        {l.status === 'rejected' && l.reject_reason && (
+                          <p className="mt-1 text-xs text-[#c0392b]">{l.reject_reason}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Link>
+                {view === 'browse' && (i === 3 || i === 11) && (
+                  <AdSlot
+                    ads={ads.bazaar_grid}
+                    cityName={cityName}
+                    imgClass="aspect-square"
+                    boxClass="min-h-[0px]"
+                  />
+                )}
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
