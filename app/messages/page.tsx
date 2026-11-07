@@ -96,11 +96,20 @@ export default function MessagesPage() {
     const body = text.trim()
     if (!body || !me || !active) return
     setSending(true); setError('')
+    
+    // Yahan payload object banakar insert kiya hai taaki TypeScript type conflict na ho
+    const payload: { sender_id: string; receiver_id: string; body: string; [key: string]: any } = {
+      sender_id: me,
+      receiver_id: active,
+      body
+    }
+
     const { data, error } = await supabase
       .from('messages')
-      .insert({ sender_id: me, receiver_id: active, body })
+      .insert(payload)
       .select('id, sender_id, receiver_id, body, created_at')
       .single()
+      
     setSending(false)
     if (error) {
       return setError(error.message.includes('row-level') ? 'You can only message your friends.' : error.message)
