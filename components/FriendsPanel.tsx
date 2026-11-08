@@ -52,7 +52,7 @@ export default function FriendsPanel({ me, activeId = null, onOpenChat }: Props)
     setRows((data ?? []) as unknown as Row[])
 
     const { data: un } = await supabase
-      .from('messages').select('sender_id').eq('receiver_id', me).is('read_at', null)
+      .from('messages').select('sender_id').eq('receiver_id', me).is('read_at', null).is('conversation_id', null)
     const counts: Record<string, number> = {}
     for (const m of un ?? []) {
       const id = m.sender_id as string

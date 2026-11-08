@@ -1,4 +1,4 @@
-// FILE: lib/useAds.ts  (GitHub mein is path par paste karo)
+// FILE: lib/useAds.ts
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -7,7 +7,7 @@ import type { Ad } from '@/components/AdSlot'
 
 type Client = ReturnType<typeof createClient>
 
-export const BAZAAR_SLOTS = ['bazaar_top', 'bazaar_grid']
+export const BAZAAR_SLOTS = ['bazaar_top', 'bazaar_grid', 'bazaar_side_left', 'bazaar_side_right']
 
 // Apne shehar (ya poore India) ke live ads laata hai, har slot mein max 5, order random
 export function useAds(supabase: Client, slots: string[]) {

@@ -1,4 +1,4 @@
-// FILE: app/bazaar/[id]/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/bazaar/[id]/page.tsx
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -7,10 +7,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import BazaarHeader from '@/components/BazaarHeader'
 import AdSlot from '@/components/AdSlot'
+import AreaMap from '@/components/AreaMap'
 import { useAds, BAZAAR_SLOTS } from '@/lib/useAds'
-import { STATUS, bazaarPath, categoryLabel, inr, one, type Listing } from '@/lib/bazaar'
-
-type Rel = { id: string; requester_id: string; receiver_id: string; status: string }
+import { CHIPS, STATUS, bazaarPath, categoryLabel, one, priceLabel, type Listing } from '@/lib/bazaar'
 
 const REASONS = [
   { id: 'spam', label: 'Spam or scam' },
@@ -21,6 +20,9 @@ const REASONS = [
   { id: 'other', label: 'Something else' },
 ]
 
+const SELECT =
+  'id, seller_id, city_id, title, description, price, category, condition, locality, image_urls, status, reject_reason, listing_type, lat, lng, profiles!seller_id(full_name, username)'
+
 export default function ListingPage() {
   const { id } = useParams<{ id: string }>()
   const [supabase] = useState(() => createClient())
@@ -28,9 +30,11 @@ export default function ListingPage() {
   const [me, setMe] = useState<string | null>(null)
   const [listing, setListing] = useState<Listing | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [rel, setRel] = useState<Rel | null>(null)
+  const [similar, setSimilar] = useState<Listing[]>([])
+  const [saved, setSaved] = useState(false)
   const [idx, setIdx] = useState(0)
   const [toast, setToast] = useState('')
+  const [chatBusy, setChatBusy] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [reason, setReason] = useState('spam')
   const [details, setDetails] = useState('')
@@ -45,46 +49,60 @@ export default function ListingPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.replace('/login'); return }
     setMe(user.id)
-    const { data } = await supabase
-      .from('listings')
-      .select('id, seller_id, city_id, title, description, price, category, condition, locality, image_urls, status, reject_reason, profiles!seller_id(full_name, username)')
-      .eq('id', id)
-      .maybeSingle()
-    setListing((data ?? null) as unknown as Listing | null)
+    const { data } = await supabase.from('listings').select(SELECT).eq('id', id).maybeSingle()
+    const l = (data ?? null) as unknown as Listing | null
+    setListing(l)
     setLoaded(true)
-    if (data && data.seller_id !== user.id) {
-      const sid = data.seller_id as string
-      const { data: fr } = await supabase
-        .from('friendships')
-        .select('id, requester_id, receiver_id, status')
-        .or(`and(requester_id.eq.${user.id},receiver_id.eq.${sid}),and(requester_id.eq.${sid},receiver_id.eq.${user.id})`)
-        .in('status', ['pending', 'accepted'])
-        .limit(1)
-      setRel((fr?.[0] ?? null) as Rel | null)
-    }
+    if (!l) return
+
+    const { data: sv } = await supabase
+      .from('saved_listings').select('listing_id').eq('user_id', user.id).eq('listing_id', id).maybeSingle()
+    setSaved(!!sv)
+
+    const { data: sim } = await supabase
+      .from('listings')
+      .select('id, seller_id, city_id, title, price, category, condition, locality, image_urls, status, reject_reason, listing_type')
+      .eq('city_id', l.city_id)
+      .eq('category', l.category)
+      .eq('listing_type', l.listing_type)
+      .eq('status', 'approved')
+      .gt('expires_at', new Date().toISOString())
+      .neq('id', id)
+      .order('created_at', { ascending: false })
+      .limit(8)
+    setSimilar((sim ?? []) as unknown as Listing[])
   }, [supabase, router, id])
 
   useEffect(() => { load() }, [load])
 
-  async function addFriend() {
+  async function toggleSave() {
     if (!me || !listing) return
-    const { error } = await supabase
-      .from('friendships').insert({ requester_id: me, receiver_id: listing.seller_id, status: 'pending' })
-    if (error) return notify(error.code === '23505' ? 'You cannot send another request to this person.' : error.message)
-    notify('Friend request sent. You can message the seller once they accept.')
-    load()
+    const was = saved
+    setSaved(!was)
+    const { error } = was
+      ? await supabase.from('saved_listings').delete().eq('user_id', me).eq('listing_id', listing.id)
+      : await supabase.from('saved_listings').insert({ user_id: me, listing_id: listing.id })
+    if (error) { setSaved(was); return notify(error.message) }
+    notify(was ? 'Removed from saved items.' : 'Saved. Find it under Saved items.')
   }
 
-  async function acceptRequest() {
-    if (!rel) return
-    const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', rel.id)
-    if (error) return notify(error.message)
-    notify('You are now friends.')
-    load()
+  // Chat shuru karo (optionally pehla message chip se)
+  async function startChat(firstMessage?: string) {
+    if (!me || !listing) return
+    setChatBusy(true)
+    const { data: cid, error } = await supabase.rpc('start_listing_conversation', { p_listing: listing.id })
+    if (error) { setChatBusy(false); return notify(error.message) }
+    if (firstMessage) {
+      const { error: mErr } = await supabase.from('messages').insert({
+        sender_id: me, receiver_id: listing.seller_id, conversation_id: cid as string, body: firstMessage,
+      })
+      if (mErr) { setChatBusy(false); return notify(mErr.message) }
+    }
+    router.push(`/messages?c=${cid as string}`)
   }
 
   async function markSold() {
-    if (!listing || !window.confirm('Mark this item as sold? It will be removed from Bazaar.')) return
+    if (!listing || !window.confirm('Mark this as done? It will be removed from Bazaar.')) return
     const { data, error } = await supabase.from('listings').update({ status: 'sold' }).eq('id', listing.id).select('id')
     if (error) return notify(error.message)
     if (!data || data.length === 0) return notify('Could not update this listing.')
@@ -130,6 +148,10 @@ export default function ListingPage() {
   const seller = one(listing.profiles)
   const mine = listing.seller_id === me
   const st = STATUS[listing.status]
+  const wanted = listing.listing_type === 'wanted'
+  const chips = CHIPS[wanted ? 'wanted' : 'sell']
+  const canChat = listing.status === 'approved'
+  const hasPhotos = listing.image_urls.length > 0
 
   return (
     <div className="min-h-screen bg-white text-[#12302f]">
@@ -137,120 +159,183 @@ export default function ListingPage() {
         <Link href="/bazaar" className="rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Back to Bazaar</Link>
       </BazaarHeader>
 
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-6 md:grid-cols-2">
-        <div>
-          <div className="aspect-square overflow-hidden rounded-2xl bg-[#f3f7f6]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={listing.image_urls[idx]} alt={listing.title} className="h-full w-full object-contain" />
+      <div className="mx-auto max-w-[1400px] px-4 py-6 xl:grid xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:gap-6">
+        <aside className="hidden xl:block">
+          <div className="sticky top-6">
+            <AdSlot ads={ads.bazaar_side_left} cityName={cityName} imgClass="aspect-[3/5]" boxClass="min-h-[0px]" />
           </div>
-          {listing.image_urls.length > 1 && (
-            <div className="mt-3 flex gap-2">
-              {listing.image_urls.map((u, i) => (
-                <button key={u} onClick={() => setIdx(i)} aria-label={`Show photo ${i + 1}`} aria-current={i === idx}
-                  className={`h-16 w-16 overflow-hidden rounded-xl border-2 ${i === idx ? 'border-[#0f5c5a]' : 'border-transparent'}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={u} alt="" className="h-full w-full object-cover" />
+        </aside>
+
+        <main className="mx-auto w-full max-w-5xl space-y-8">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              {hasPhotos ? (
+                <>
+                  <div className="aspect-square overflow-hidden rounded-2xl bg-[#f3f7f6]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={listing.image_urls[idx]} alt={listing.title} className="h-full w-full object-contain" />
+                  </div>
+                  {listing.image_urls.length > 1 && (
+                    <div className="mt-3 flex gap-2">
+                      {listing.image_urls.map((u, i) => (
+                        <button key={u} onClick={() => setIdx(i)} aria-label={`Show photo ${i + 1}`} aria-current={i === idx}
+                          className={`h-16 w-16 overflow-hidden rounded-xl border-2 ${i === idx ? 'border-[#0f5c5a]' : 'border-transparent'}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="grid aspect-square place-items-center rounded-2xl bg-[#fff8e6] p-6 text-center">
+                  <div>
+                    <p className="text-sm font-extrabold tracking-wide text-[#7a5600]">WANTED</p>
+                    <p className="mt-1 text-lg font-bold">Looking for {categoryLabel(listing.category)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-extrabold tracking-wide ${wanted ? 'bg-[#f0a500] text-[#3a2900]' : 'bg-[#e3efee] text-[#0f5c5a]'}`}>
+                  {wanted ? 'BUYER REQUIREMENT' : 'SALE LISTING'}
+                </span>
+                <button onClick={toggleSave} aria-pressed={saved} aria-label={saved ? 'Remove from saved items' : 'Save this listing'}
+                  className="ml-auto flex items-center gap-1.5 rounded-full border border-[#dbe5e4] px-3 py-1.5 text-sm font-semibold hover:bg-[#f3f7f6]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill={saved ? '#c0392b' : 'none'} stroke={saved ? '#c0392b' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                  </svg>
+                  {saved ? 'Saved' : 'Save'}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
 
-        <div className="space-y-4">
-          {mine && listing.status !== 'approved' && st && (
-            <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${st.cls}`}>
-              {st.label}
-              {listing.status === 'pending' && ': our team is checking this listing. It will appear in Bazaar once approved.'}
-              {listing.status === 'rejected' && listing.reject_reason ? `: ${listing.reject_reason}` : ''}
-            </div>
-          )}
+              {mine && listing.status !== 'approved' && st && (
+                <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${st.cls}`}>
+                  {st.label}
+                  {listing.status === 'pending' && ': our team is checking this. It will appear in Bazaar once approved.'}
+                  {listing.status === 'rejected' && listing.reject_reason ? `: ${listing.reject_reason}` : ''}
+                </div>
+              )}
 
-          <div>
-            <p className="text-3xl font-extrabold">{inr(listing.price)}</p>
-            <h2 className="mt-1 text-xl font-bold">{listing.title}</h2>
-            <p className="mt-1 text-sm text-[#5d7776]">
-              {[categoryLabel(listing.category), listing.condition === 'new' ? 'New' : 'Used', listing.locality]
-                .filter(Boolean).join(' · ')}
-            </p>
+              <div>
+                <p className="text-3xl font-extrabold">{priceLabel(listing.listing_type, listing.price)}</p>
+                <h2 className="mt-1 text-xl font-bold">{listing.title}</h2>
+                <p className="mt-1 text-sm text-[#5d7776]">
+                  {[categoryLabel(listing.category), wanted ? null : listing.condition === 'new' ? 'New' : 'Used', listing.locality]
+                    .filter(Boolean).join(' · ')}
+                </p>
+              </div>
+
+              {listing.description && <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{listing.description}</p>}
+
+              <div className="rounded-2xl border border-[#e5eceb] p-4">
+                <p className="text-sm text-[#5d7776]">{wanted ? 'Posted by (buyer)' : 'Seller'}</p>
+                <p className="font-bold">{seller?.full_name ?? 'MilapHub user'}</p>
+                <p className="text-sm text-[#5d7776]">@{seller?.username ?? 'user'}</p>
+
+                {mine ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {listing.status === 'approved' && (
+                      <button onClick={markSold} className="rounded-full bg-[#0f5c5a] px-5 py-2 text-sm font-bold text-white hover:bg-[#0b4846]">
+                        {wanted ? 'Mark as fulfilled' : 'Mark as sold'}
+                      </button>
+                    )}
+                    <button onClick={removeListing} className="rounded-full border border-[#f1d3cf] px-5 py-2 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">Delete listing</button>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    {canChat && (
+                      <>
+                        <button onClick={() => startChat()} disabled={chatBusy}
+                          className="w-full rounded-full bg-[#0f5c5a] px-5 py-3 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-60">
+                          {wanted ? 'I have this item / Offer to buyer' : 'Chat with seller'}
+                        </button>
+                        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick messages">
+                          {chips.map(c => (
+                            <button key={c} onClick={() => startChat(c)} disabled={chatBusy}
+                              className="rounded-full border border-[#dbe5e4] px-3 py-1.5 text-xs font-semibold hover:bg-[#f3f7f6] disabled:opacity-60">
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    <button onClick={() => setReportOpen(o => !o)} className="text-sm font-semibold text-[#5d7776] underline hover:text-[#c0392b]">
+                      Report this listing
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {reportOpen && (
+                <div className="space-y-2 rounded-2xl border border-[#e5eceb] p-4">
+                  <p className="font-bold">Why are you reporting this listing?</p>
+                  {REASONS.map(r => (
+                    <label key={r.id} className="flex cursor-pointer items-center gap-3 text-sm">
+                      <input type="radio" name="reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="h-4 w-4 accent-[#0f5c5a]" />
+                      {r.label}
+                    </label>
+                  ))}
+                  <textarea value={details} onChange={e => setDetails(e.target.value)} maxLength={500} rows={2}
+                    placeholder="More details (optional)"
+                    className="w-full resize-none rounded-xl bg-[#f3f7f6] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30" />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setReportOpen(false)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Cancel</button>
+                    <button onClick={submitReport} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Submit report</button>
+                  </div>
+                </div>
+              )}
+
+              <AreaMap lat={listing.lat} lng={listing.lng} locality={listing.locality} cityName={cityName} />
+
+              <div className="rounded-2xl bg-[#fff8e6] p-4 text-sm text-[#5a4300]">
+                <p className="font-bold">Stay safe</p>
+                <p className="mt-1">
+                  Meet in a public place and check the item before you pay. Never send money in advance. MilapHub does not
+                  handle payments or delivery for Bazaar.
+                </p>
+              </div>
+
+              <AdSlot ads={ads.bazaar_grid} cityName={cityName} imgClass="aspect-[16/9]" boxClass="min-h-[0px]" startAt={2} />
+            </div>
           </div>
 
-          {listing.description && <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{listing.description}</p>}
-
-          <div className="rounded-2xl border border-[#e5eceb] p-4">
-            <p className="text-sm text-[#5d7776]">Seller</p>
-            <p className="font-bold">{seller?.full_name ?? 'MilapHub user'}</p>
-            <p className="text-sm text-[#5d7776]">@{seller?.username ?? 'user'}</p>
-
-            {mine ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {listing.status === 'approved' && (
-                  <button onClick={markSold} className="rounded-full bg-[#0f5c5a] px-5 py-2 text-sm font-bold text-white hover:bg-[#0b4846]">Mark as sold</button>
-                )}
-                <button onClick={removeListing} className="rounded-full border border-[#f1d3cf] px-5 py-2 text-sm font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">Delete listing</button>
-              </div>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {rel?.status === 'accepted' && (
-                  <Link href={`/messages?with=${listing.seller_id}`}
-                    className="block rounded-full bg-[#0f5c5a] px-5 py-3 text-center text-sm font-bold text-white hover:bg-[#0b4846]">
-                    Message seller
+          {similar.length > 0 && (
+            <section aria-labelledby="similar-title">
+              <h3 id="similar-title" className="mb-3 text-lg font-extrabold">
+                {wanted ? `Similar requirements in ${cityName}` : `Similar products in ${cityName}`}
+              </h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {similar.map(s => (
+                  <Link key={s.id} href={`/bazaar/${s.id}`} className="overflow-hidden rounded-2xl border border-[#e5eceb] bg-white shadow-sm transition hover:shadow-md">
+                    <div className="aspect-square bg-[#f3f7f6]">
+                      {s.image_urls[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.image_urls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full place-items-center p-3 text-center text-sm font-bold text-[#5d7776]">Wanted</div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <p className="font-extrabold">{priceLabel(s.listing_type, s.price)}</p>
+                      <p className="line-clamp-2 text-sm">{s.title}</p>
+                      {s.locality && <p className="mt-1 truncate text-xs text-[#5d7776]">{s.locality}</p>}
+                    </div>
                   </Link>
-                )}
-                {rel?.status === 'pending' && rel.requester_id === me && (
-                  <p className="rounded-full bg-[#f3f7f6] px-5 py-3 text-center text-sm font-semibold text-[#5d7776]">
-                    Friend request sent. You can message once the seller accepts.
-                  </p>
-                )}
-                {rel?.status === 'pending' && rel.receiver_id === me && (
-                  <button onClick={acceptRequest} className="w-full rounded-full bg-[#0f5c5a] px-5 py-3 text-sm font-bold text-white hover:bg-[#0b4846]">
-                    Accept friend request to chat
-                  </button>
-                )}
-                {!rel && (
-                  <button onClick={addFriend} className="w-full rounded-full bg-[#0f5c5a] px-5 py-3 text-sm font-bold text-white hover:bg-[#0b4846]">
-                    Add friend to message seller
-                  </button>
-                )}
-                {!rel && (
-                  <p className="text-xs text-[#5d7776]">Chat on MilapHub works only between friends. Send a request and chat once it is accepted.</p>
-                )}
-                <button onClick={() => setReportOpen(o => !o)} className="text-sm font-semibold text-[#5d7776] underline hover:text-[#c0392b]">
-                  Report this listing
-                </button>
+                ))}
               </div>
-            )}
-          </div>
-
-          {reportOpen && (
-            <div className="space-y-2 rounded-2xl border border-[#e5eceb] p-4">
-              <p className="font-bold">Why are you reporting this listing?</p>
-              {REASONS.map(r => (
-                <label key={r.id} className="flex cursor-pointer items-center gap-3 text-sm">
-                  <input type="radio" name="reason" checked={reason === r.id} onChange={() => setReason(r.id)} className="h-4 w-4 accent-[#0f5c5a]" />
-                  {r.label}
-                </label>
-              ))}
-              <textarea value={details} onChange={e => setDetails(e.target.value)} maxLength={500} rows={2}
-                placeholder="More details (optional)"
-                className="w-full resize-none rounded-xl bg-[#f3f7f6] px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30" />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setReportOpen(false)} className="rounded-full px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Cancel</button>
-                <button onClick={submitReport} className="rounded-full bg-[#c0392b] px-5 py-2 text-sm font-bold text-white hover:brightness-110">Submit report</button>
-              </div>
-            </div>
+            </section>
           )}
+        </main>
 
-          <div className="rounded-2xl bg-[#fff8e6] p-4 text-sm text-[#5a4300]">
-            <p className="font-bold">Stay safe</p>
-            <p className="mt-1">
-              Meet in a public place and check the item before you pay. Never send money in advance. MilapHub does not
-              handle payments or delivery for Bazaar.
-            </p>
+        <aside className="hidden xl:block">
+          <div className="sticky top-6">
+            <AdSlot ads={ads.bazaar_side_right} cityName={cityName} imgClass="aspect-[3/5]" boxClass="min-h-[0px]" />
           </div>
-
-          <AdSlot ads={ads.bazaar_grid} cityName={cityName} imgClass="aspect-[16/9]" boxClass="min-h-[0px]" />
-        </div>
-      </main>
+        </aside>
+      </div>
 
       {toast && (
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#12302f] px-5 py-3 text-sm font-semibold text-white shadow-xl">

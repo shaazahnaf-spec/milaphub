@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { compressImage } from '@/lib/image'
 import BazaarHeader from '@/components/BazaarHeader'
-import { CATEGORIES } from '@/lib/bazaar'
+import { CATEGORIES, geocode } from '@/lib/bazaar'
 
 type Photo = { blob: Blob; ext: string; preview: string }
 
@@ -19,6 +19,8 @@ export default function NewListing() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [me, setMe] = useState<string | null>(null)
   const [cityId, setCityId] = useState<number | null>(null)
+  const [cityLabel, setCityLabel] = useState('')
+  const [listingType, setListingType] = useState<'sell' | 'wanted'>('sell')
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('mobiles')
   const [condition, setCondition] = useState('used')
@@ -34,11 +36,14 @@ export default function NewListing() {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
-      const { data } = await supabase.from('profiles').select('city_id, area').eq('id', user.id).maybeSingle()
+      const { data } = await supabase.from('profiles').select('city_id, area, cities(name, state)').eq('id', user.id).maybeSingle()
       if (!data?.city_id) { router.replace('/onboarding'); return }
       setMe(user.id)
       setCityId(data.city_id as number)
       setLocality((data.area as string | null) ?? '')
+      const cRaw = (data as unknown as { cities: { name: string; state: string } | { name: string; state: string }[] | null }).cities
+      const c = Array.isArray(cRaw) ? cRaw[0] : cRaw
+      if (c) setCityLabel(`${c.name}, ${c.state}`)
     }
     init()
   }, [supabase, router])
@@ -76,7 +81,7 @@ export default function NewListing() {
     const priceNum = Math.round(Number(price))
     if (title.trim().length < 3) return setError('Please write a longer title.')
     if (price === '' || !Number.isFinite(priceNum) || priceNum < 0) return setError('Enter a valid price. Use 0 for free.')
-    if (photos.length === 0) return setError('Add at least one photo.')
+    if (listingType === 'sell' && photos.length === 0) return setError('Add at least one photo.')
 
     setBusy(true); setError('')
     const urls: string[] = []
@@ -95,7 +100,13 @@ export default function NewListing() {
       urls.push(supabase.storage.from('bazaar').getPublicUrl(path).data.publicUrl)
     }
 
+    // Approximate location (sirf ~1 km tak, database mein round hota hai)
+    const geo = locality.trim() ? await geocode(`${locality.trim()}, ${cityLabel}, India`) : null
+
     const { error } = await supabase.from('listings').insert({
+      listing_type: listingType,
+      lat: geo?.lat ?? null,
+      lng: geo?.lng ?? null,
       seller_id: me,
       city_id: cityId,
       title: title.trim(),
@@ -120,7 +131,7 @@ export default function NewListing() {
       <div className="min-h-screen bg-white text-[#12302f]">
         <BazaarHeader title="Sell something" />
         <main className="mx-auto max-w-md px-4 py-12 text-center">
-          <h2 className="text-2xl font-extrabold">Listing sent for approval</h2>
+          <h2 className="text-2xl font-extrabold">{listingType === 'wanted' ? 'Request sent for approval' : 'Listing sent for approval'}</h2>
           <p className="mt-2 text-[#5d7776]">
             Our team checks every listing before it goes live. You can see its status under My listings.
           </p>
@@ -143,14 +154,25 @@ export default function NewListing() {
 
   return (
     <div className="min-h-screen bg-white text-[#12302f]">
-      <BazaarHeader title="Sell something">
+      <BazaarHeader title={listingType === 'wanted' ? 'Post a requirement' : 'Sell something'}>
         <Link href="/bazaar" className="rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">Cancel</Link>
       </BazaarHeader>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
         <form onSubmit={submit} className="space-y-4">
+          <div className="flex overflow-hidden rounded-full border border-[#dbe5e4]" role="group" aria-label="What do you want to do?">
+            <button type="button" aria-pressed={listingType === 'sell'} onClick={() => setListingType('sell')}
+              className={`flex-1 px-4 py-2.5 text-sm font-bold ${listingType === 'sell' ? 'bg-[#0f5c5a] text-white' : 'bg-white hover:bg-[#f3f7f6]'}`}>
+              I want to Sell
+            </button>
+            <button type="button" aria-pressed={listingType === 'wanted'} onClick={() => setListingType('wanted')}
+              className={`flex-1 px-4 py-2.5 text-sm font-bold ${listingType === 'wanted' ? 'bg-[#f0a500] text-[#3a2900]' : 'bg-white hover:bg-[#f3f7f6]'}`}>
+              I am Looking For (Wanted)
+            </button>
+          </div>
+
           <div>
-            <p className="mb-2 text-sm font-semibold">Photos (1 to 4)</p>
+            <p className="mb-2 text-sm font-semibold">{listingType === 'wanted' ? 'Reference photos (optional, up to 4)' : 'Photos (1 to 4)'}</p>
             <div className="flex flex-wrap gap-3">
               {photos.map((p, i) => (
                 <div key={p.preview} className="relative h-24 w-24 overflow-hidden rounded-xl bg-[#f3f7f6]">
@@ -175,7 +197,7 @@ export default function NewListing() {
 
           <label className="block text-sm font-semibold">Title
             <input required maxLength={100} value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="What are you selling?" className={field + ' mt-1'} />
+              placeholder={listingType === 'wanted' ? 'What are you looking for?' : 'What are you selling?'} className={field + ' mt-1'} />
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -184,13 +206,15 @@ export default function NewListing() {
                 {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </label>
-            <label className="block text-sm font-semibold">Condition
-              <select value={condition} onChange={e => setCondition(e.target.value)} className={field + ' mt-1'}>
-                <option value="used">Used</option>
-                <option value="new">New</option>
-              </select>
-            </label>
-            <label className="block text-sm font-semibold">Price in ₹ (0 for free)
+            {listingType === 'sell' && (
+              <label className="block text-sm font-semibold">Condition
+                <select value={condition} onChange={e => setCondition(e.target.value)} className={field + ' mt-1'}>
+                  <option value="used">Used</option>
+                  <option value="new">New</option>
+                </select>
+              </label>
+            )}
+            <label className="block text-sm font-semibold">{listingType === 'wanted' ? 'Your budget in ₹ (0 = open budget)' : 'Price in ₹ (0 for free)'}
               <input required type="number" min={0} max={100000000} inputMode="numeric" value={price}
                 onChange={e => setPrice(e.target.value)} className={field + ' mt-1'} />
             </label>
@@ -210,10 +234,10 @@ export default function NewListing() {
 
           <button disabled={busy}
             className="w-full rounded-full bg-[#0f5c5a] py-3 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50">
-            {busy ? 'Uploading...' : 'Send for approval'}
+            {busy ? 'Sending...' : listingType === 'wanted' ? 'Send requirement for approval' : 'Send for approval'}
           </button>
           <p className="text-center text-xs text-[#5d7776]">
-            Listing is free. Every listing is checked by our team before it goes live.
+            Free to post. Every listing is checked by our team before it goes live. Only the approximate area (about 1 km) is shown on the map.
           </p>
         </form>
       </main>

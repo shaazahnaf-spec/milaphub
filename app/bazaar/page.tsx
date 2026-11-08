@@ -1,177 +1,213 @@
-// FILE: app/bazaar/page.tsx
+// FILE: app/messages/page.tsx
 'use client'
 
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import BazaarHeader from '@/components/BazaarHeader'
-import AdSlot from '@/components/AdSlot'
-import { useAds, BAZAAR_SLOTS } from '@/lib/useAds'
-import { CATEGORIES, STATUS, categoryLabel, inr, one, type Listing } from '@/lib/bazaar'
+import FriendsPanel from '@/components/FriendsPanel'
 
-export default function BazaarPage() {
+type Msg = { id: string; sender_id: string; receiver_id: string; body: string; created_at: string }
+
+const time = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+
+export default function MessagesPage() {
   const [supabase] = useState(() => createClient())
   const router = useRouter()
   const [me, setMe] = useState<string | null>(null)
-  const [cityId, setCityId] = useState<number | null>(null)
-  const [cityName, setCityName] = useState('your city')
-  const [view, setView] = useState<'browse' | 'mine'>('browse')
-  const [category, setCategory] = useState('all')
-  const [q, setQ] = useState('')
-  const [term, setTerm] = useState('')
-  const [items, setItems] = useState<Listing[]>([])
-  const [loading, setLoading] = useState(true)
+  const [active, setActive] = useState<any | null>(null)
+  const [activeName, setActiveName] = useState('')
+  const [msgs, setMsgs] = useState<Msg[]>([])
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const { ads } = useAds(supabase, BAZAAR_SLOTS)
+  const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
-      const { data } = await supabase
-        .from('profiles').select('city_id, cities(name)').eq('id', user.id).maybeSingle()
-      if (!data?.city_id) { router.replace('/onboarding'); return }
       setMe(user.id)
-      setCityId(data.city_id as number)
-      const c = one((data as unknown as { cities: { name: string } | { name: string }[] | null }).cities)
-      if (c) setCityName(c.name)
+      const w = new URLSearchParams(window.location.search).get('with')
+      if (w) {
+        const { data } = await supabase.from('profiles').select('full_name').eq('id', w).maybeSingle()
+        setActive(w)
+        setActiveName(data?.full_name ?? 'Friend')
+      }
     }
     init()
   }, [supabase, router])
 
   useEffect(() => {
-    const t = setTimeout(() => setTerm(q.trim().replace(/[%,()*]/g, ' ').trim()), 300)
-    return () => clearTimeout(t)
-  }, [q])
+    if (!me || !active) return
+    const meId = me
+    const otherId = typeof active === 'string' ? active : active?.id
+    if (!otherId) return
+    let cancelled = false
 
-  const load = useCallback(async () => {
-    if (!me || !cityId) return
-    setLoading(true); setError('')
-    let query = supabase
-      .from('listings')
-      .select('id, seller_id, city_id, title, price, category, condition, locality, image_urls, status, reject_reason')
-    if (view === 'mine') {
-      query = query.eq('seller_id', me)
-    } else {
-      query = query.eq('city_id', cityId).eq('status', 'approved').gt('expires_at', new Date().toISOString())
-      if (category !== 'all') query = query.eq('category', category)
-      if (term) query = query.ilike('title', `%${term}%`)
+    async function load() {
+      const { data, error } = await (supabase.from('messages') as any)
+        .select('id, sender_id, receiver_id, body, created_at')
+        .or(`and(sender_id.eq.${meId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${meId})`)
+        .order('created_at', { ascending: false })
+        .limit(100)
+      if (cancelled) return
+      if (error) { setError(error.message); return }
+      setMsgs(((data ?? []) as Msg[]).reverse())
+      await (supabase.from('messages') as any)
+        .update({ read_at: new Date().toISOString() })
+        .eq('receiver_id', meId).eq('sender_id', otherId).is('read_at', null)
     }
-    const { data, error } = await query.order('created_at', { ascending: false }).limit(60)
-    setLoading(false)
+    load()
+
+    const ch = supabase
+      .channel(`chat-${meId}-${otherId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${meId}` },
+        payload => {
+          const m = payload.new as unknown as Msg
+          if (m.sender_id !== otherId) return
+          setMsgs(list => (list.some(x => x.id === m.id) ? list : [...list, m]))
+          ;(supabase.from('messages') as any).update({ read_at: new Date().toISOString() }).eq('id', m.id).then(() => {})
+        })
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      supabase.removeChannel(ch)
+    }
+  }, [supabase, me, active])
+
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [msgs])
+
+  function openChat(id: string, name: string) {
+    setActive(id)
+    setActiveName(name)
+    setMsgs([])
+    setError('')
+    window.history.replaceState(null, '', `/messages?with=${id}`)
+  }
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault()
+    const clean = text.trim()
+    const recipientId = typeof active === 'string' ? active : active?.id
+    if (!clean || !me || !recipientId) return
+    setSending(true); setError('')
+
+    // Direct insert with 'as any' bypass to prevent type errors completely
+    const { data, error } = await (supabase.from('messages') as any)
+      .insert({
+        sender_id: me,
+        receiver_id: recipientId,
+        body: clean
+      })
+      .select('id, sender_id, receiver_id, body, created_at')
+      .single()
+
+    setSending(false)
+    if (error) {
+      return setError(error.message.includes('row-level') ? 'You can only message your friends.' : error.message)
+    }
+    setText('')
+    setMsgs(list => [...list, data as Msg])
+  }
+
+  async function unfriend() {
+    const recipientId = typeof active === 'string' ? active : active?.id
+    if (!me || !recipientId) return
+    if (!window.confirm(`Remove ${activeName} from your friends?`)) return
+    const { error } = await (supabase.from('friendships') as any)
+      .delete()
+      .or(`and(requester_id.eq.${me},receiver_id.eq.${recipientId}),and(requester_id.eq.${recipientId},receiver_id.eq.${me})`)
     if (error) return setError(error.message)
-    setItems((data ?? []) as unknown as Listing[])
-  }, [supabase, me, cityId, view, category, term])
+    setActive(null)
+    setMsgs([])
+    window.history.replaceState(null, '', '/messages')
+  }
 
-  useEffect(() => { load() }, [load])
+  if (!me) {
+    return <div className="grid min-h-screen place-items-center font-semibold text-[#0f5c5a]">Loading...</div>
+  }
 
-  const tab = (v: 'browse' | 'mine', label: string) => (
-    <button
-      onClick={() => setView(v)}
-      className={`rounded-full px-5 py-2 text-sm font-bold ${view === v ? 'bg-[#0f5c5a] text-white' : 'bg-[#f3f7f6] hover:bg-[#e3efee]'}`}
-    >
-      {label}
-    </button>
-  )
+  const activeIdStr = typeof active === 'string' ? active : active?.id
 
   return (
     <div className="min-h-screen bg-white text-[#12302f]">
-      <BazaarHeader title="Bazaar">
-        <Link href="/bazaar/new" className="rounded-full bg-[#f0a500] px-5 py-2 text-sm font-bold text-[#3a2900] hover:brightness-105">
-          Sell something
-        </Link>
-        <Link href="/home" className="hidden rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6] sm:block">
-          Back to home
-        </Link>
-      </BazaarHeader>
+      <header className="border-b border-[#e5eceb]">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+          <h1 className="text-xl font-extrabold">Messages</h1>
+          <Link href="/home" className="rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">
+            Back to MilapHub
+          </Link>
+        </div>
+      </header>
 
-      <main className="mx-auto max-w-5xl space-y-4 px-4 py-5">
-        <div className="flex flex-wrap items-center gap-2">
-          {tab('browse', `Buy in ${cityName}`)}
-          {tab('mine', 'My listings')}
+      <div className="mx-auto grid max-w-5xl gap-4 p-4 md:grid-cols-[320px_minmax(0,1fr)]">
+        <div className={activeIdStr ? 'hidden md:block' : 'block'}>
+          <FriendsPanel me={me} activeId={activeIdStr} onOpenChat={openChat} />
         </div>
 
-        {view === 'browse' && (
-          <>
-            <AdSlot ads={ads.bazaar_top} cityName={cityName} imgClass="aspect-[4/1]" boxClass="min-h-[0px]" />
-            <input
-              value={q}
-              onChange={e => setQ(e.target.value)}
-              placeholder="Search in Bazaar"
-              aria-label="Search listings"
-              className="w-full rounded-full bg-[#f3f7f6] px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
-            />
-            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Categories">
-              {[{ id: 'all', label: 'All' }, ...CATEGORIES].map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setCategory(c.id)}
-                  aria-pressed={category === c.id}
-                  className={`shrink-0 rounded-full border px-4 py-1.5 text-sm font-semibold ${category === c.id ? 'border-[#0f5c5a] bg-[#0f5c5a] text-white' : 'border-[#dbe5e4] hover:bg-[#f3f7f6]'}`}
-                >
-                  {c.label}
-                </button>
-              ))}
+        <section className={`${activeIdStr ? 'flex' : 'hidden md:flex'} h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-[#e5eceb]`}>
+          {!activeIdStr ? (
+            <div className="grid flex-1 place-items-center p-6 text-center text-[#5d7776]">
+              Select a friend to start chatting.
             </div>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="flex items-center gap-3 border-b border-[#e5eceb] px-4 py-3">
+                <button onClick={() => setActive(null)} aria-label="Back to friends" className="rounded-full px-2 py-1 text-lg font-bold hover:bg-[#f3f7f6] md:hidden">
+                  ←
+                </button>
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-[#f0a500] text-sm font-bold text-[#3a2900]">
+                  {activeName.charAt(0).toUpperCase()}
+                </span>
+                <p className="font-bold">{activeName}</p>
+                <button onClick={unfriend} className="ml-auto rounded-full px-3 py-1.5 text-xs font-semibold text-[#c0392b] hover:bg-[#fdf3f2]">
+                  Unfriend
+                </button>
+              </div>
 
-        {error && <p role="alert" className="text-sm font-medium text-[#c0392b]">{error}</p>}
+              <div className="flex-1 space-y-2 overflow-y-auto p-4">
+                {msgs.length === 0 && (
+                  <p className="text-center text-sm text-[#5d7776]">No messages yet. Say salaam!</p>
+                )}
+                {msgs.map(m => {
+                  const mine = m.sender_id === me
+                  return (
+                    <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 ${mine ? 'bg-[#0f5c5a] text-white' : 'bg-[#f3f7f6]'}`}>
+                        <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>
+                        <p className={`mt-0.5 text-right text-[10px] ${mine ? 'text-white/70' : 'text-[#5d7776]'}`}>{time(m.created_at)}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div ref={endRef} />
+              </div>
 
-        {loading ? (
-          <p className="py-10 text-center text-[#5d7776]">Loading...</p>
-        ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-[#e5eceb] p-10 text-center text-[#5d7776]">
-            {view === 'mine'
-              ? 'You have not listed anything yet.'
-              : `Nothing for sale in ${cityName} yet. Be the first to list something!`}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {items.map((l, i) => (
-              <Fragment key={l.id}>
-              <Link
-                href={`/bazaar/${l.id}`}
-                className="overflow-hidden rounded-2xl border border-[#e5eceb] bg-white shadow-sm transition hover:shadow-md"
-              >
-                <div className="aspect-square bg-[#f3f7f6]">
-                  {l.image_urls[0] && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={l.image_urls[0]} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  )}
-                </div>
-                <div className="p-3">
-                  <p className="font-extrabold">{inr(l.price)}</p>
-                  <p className="line-clamp-2 text-sm">{l.title}</p>
-                  <p className="mt-1 truncate text-xs text-[#5d7776]">
-                    {[l.locality, categoryLabel(l.category)].filter(Boolean).join(' · ')}
-                  </p>
-                  {view === 'mine' && (
-                    <>
-                      <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold ${STATUS[l.status]?.cls ?? ''}`}>
-                        {STATUS[l.status]?.label ?? l.status}
-                      </span>
-                      {l.status === 'rejected' && l.reject_reason && (
-                        <p className="mt-1 text-xs text-[#c0392b]">{l.reject_reason}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </Link>
-              {view === 'browse' && (i === 3 || i === 11) && (
-                <AdSlot
-                  ads={ads.bazaar_grid}
-                  cityName={cityName}
-                  imgClass="aspect-square"
-                  boxClass="min-h-[0px]"
+              {error && <p role="alert" className="px-4 pb-1 text-sm font-medium text-[#c0392b]">{error}</p>}
+              <form onSubmit={send} className="flex items-center gap-2 border-t border-[#e5eceb] p-3">
+                <input
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  maxLength={2000}
+                  placeholder="Write a message..."
+                  aria-label="Write a message"
+                  className="min-w-0 flex-1 rounded-full bg-[#f3f7f6] px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
                 />
-              )}
-              </Fragment>
-            ))}
-          </div>
-        )}
-      </main>
+                <button
+                  disabled={sending || !text.trim()}
+                  className="rounded-full bg-[#0f5c5a] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0b4846] disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </form>
+            </>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
