@@ -117,9 +117,12 @@ export default function MessagesPage() {
     const clean = body.trim()
     if (!clean || !me || !active) return
     setSending(true); setError('')
-    const row = active.kind === 'conv'
-      ? { sender_id: me, receiver_id: active.conv.otherId, conversation_id: active.conv.id, body: clean }
-      : { sender_id: me, receiver_id: active.id, body: clean }
+    const row = {
+      sender_id: me,
+      receiver_id: active.kind === 'conv' ? active.conv.otherId : active.id,
+      conversation_id: active.kind === 'conv' ? active.conv.id : null,
+      body: clean,
+    }
     const { data, error } = await supabase
       .from('messages').insert(row).select('id, sender_id, receiver_id, body, created_at').single()
     setSending(false)
