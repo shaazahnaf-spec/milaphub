@@ -65,7 +65,7 @@ export default function MatrimonyAdmin() {
         const { data: s } = await supabase.storage.from('matrimony-docs').createSignedUrl(d.storage_path, 900)
         docs.push({ ...d, url: s?.signedUrl })
       }
-      out.push({ ...row, photos: (signedPhotos ?? []).map(s => s.signedUrl), docs })
+      out.push({ ...row, photos: (signedPhotos ?? []).map(s => s.signedUrl).filter((url): url is string => url !== null), docs })
     }
     setItems(out)
     setLoading(false)
