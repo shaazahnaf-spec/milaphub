@@ -159,7 +159,9 @@ export default function MessagesPage() {
 
   const conv = active?.kind === 'conv' ? active.conv : null
   const title = active ? (active.kind === 'conv' ? active.conv.otherName : active.name) : ''
-  const chips = conv ? CHIPS[conv.listing?.listing_type === 'wanted' ? 'wanted' : 'sell'] : []
+  const chips = conv
+    ? CHIPS[conv.kind === 'matrimony' ? 'matrimony' : conv.listing?.listing_type === 'wanted' ? 'wanted' : 'sell']
+    : []
   const closed = conv?.status === 'closed'
 
   return (
@@ -175,6 +177,7 @@ export default function MessagesPage() {
 
       <div className="mx-auto grid max-w-5xl gap-4 p-4 md:grid-cols-[320px_minmax(0,1fr)]">
         <div className={`${active ? 'hidden md:block' : 'block'} space-y-3`}>
+          <ItemChats me={me} activeId={conv?.id ?? null} onOpen={openConv} kind="matrimony" title="Matrimony chats" />
           <ItemChats me={me} activeId={conv?.id ?? null} onOpen={openConv} />
           <FriendsPanel me={me} activeId={active?.kind === 'friend' ? active.id : null} onOpenChat={openFriend} />
         </div>
@@ -219,7 +222,11 @@ export default function MessagesPage() {
                     )}
                   </Link>
                 ) : (
-                  <p className="border-b border-[#e5eceb] bg-[#f8fbfa] px-4 py-2 text-sm text-[#5d7776]">This listing is no longer available.</p>
+                  <p className="border-b border-[#e5eceb] bg-[#f8fbfa] px-4 py-2 text-sm text-[#5d7776]">
+                    {conv.kind === 'matrimony'
+                      ? 'Matrimony chat. MilapHub never shows phone numbers. Share your number yourself only when you and your family are comfortable. Never send money to anyone you have met online.'
+                      : 'This listing is no longer available.'}
+                  </p>
                 )
               )}
 
