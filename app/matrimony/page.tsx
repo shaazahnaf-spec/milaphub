@@ -93,7 +93,7 @@ export default function MatrimonyHub() {
   const [uid, setUid] = useState<string | null>(null)
   const [choice, setChoice] = useState<string | null>(null)
   const [planBusy, setPlanBusy] = useState(false)
-  const { ads, cityName } = useAds(supabase, tierToAudience(quota?.tier ?? 'normal'))
+  const { ads, cityName } = useAds(supabase, [tierToAudience(quota?.tier ?? 'normal')])
 
   const notify = useCallback((t: string) => {
     setToast(t)
