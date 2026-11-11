@@ -82,4 +82,5 @@ export async function geocode(query: string): Promise<{ lat: number; lng: number
 export const CHIPS: Record<string, string[]> = {
   sell: ['Is this available?', 'Is the price negotiable?', 'Where can we meet?'],
   wanted: ['I have this item', 'What is your budget?', 'I can share photos'],
+  matrimony: ['Thank you for accepting my interest', 'Can our families speak?', 'Tell me a little about yourself'],
 }
