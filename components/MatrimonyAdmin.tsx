@@ -6,6 +6,13 @@ import { createClient } from '@/lib/supabase/client'
 import { DOC_TYPES, MARITAL, ageFromDob, cmToFt } from '@/lib/matrimony'
 
 type Doc = { id: string; doc_type: string; storage_path: string; url?: string }
+type Req = {
+  user_id: string
+  tier: string
+  chosen_at: string
+  profiles: { username: string | null; full_name: string | null } | { username: string | null; full_name: string | null }[] | null
+  active?: string
+}
 type Item = {
   id: string
   user_id: string
@@ -32,6 +39,7 @@ type Item = {
 export default function MatrimonyAdmin() {
   const [supabase] = useState(() => createClient())
   const [items, setItems] = useState<Item[]>([])
+  const [reqs, setReqs] = useState<Req[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
   const [uname, setUname] = useState('')
@@ -65,13 +73,41 @@ export default function MatrimonyAdmin() {
         const { data: s } = await supabase.storage.from('matrimony-docs').createSignedUrl(d.storage_path, 900)
         docs.push({ ...d, url: s?.signedUrl })
       }
-      out.push({ ...row, photos: (signedPhotos ?? []).map(s => s.signedUrl).filter((url): url is string => url !== null), docs })
+      out.push({ ...row, photos: (signedPhotos ?? []).map(s => s.signedUrl), docs })
     }
     setItems(out)
+
+    // Gold / Premium chunne wale users
+    const { data: pc } = await supabase
+      .from('matrimony_plan_choice')
+      .select('user_id, tier, chosen_at, profiles(username, full_name)')
+      .neq('tier', 'normal')
+      .order('chosen_at', { ascending: false })
+      .limit(50)
+    const reqRows = (pc ?? []) as unknown as Req[]
+    if (reqRows.length) {
+      const { data: subs } = await supabase
+        .from('matrimony_subscriptions').select('user_id, tier, ends_at').in('user_id', reqRows.map(r => r.user_id))
+      const now = Date.now()
+      for (const r of reqRows) {
+        const s = (subs ?? []).find(x => x.user_id === r.user_id)
+        r.active = s && (!s.ends_at || new Date(s.ends_at as string).getTime() > now) ? (s.tier as string) : 'normal'
+      }
+    }
+    setReqs(reqRows)
     setLoading(false)
   }, [supabase, notify])
 
   useEffect(() => { load() }, [load])
+
+  async function activate(r: Req) {
+    const u = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+    if (!u?.username) return notify('This user has no username.')
+    const { error } = await supabase.rpc('admin_set_matrimony_tier', { p_username: u.username, p_tier: r.tier, p_days: 30 })
+    if (error) return notify(error.message)
+    notify(`${r.tier} activated for @${u.username} for 30 days.`)
+    load()
+  }
 
   async function setTierFor() {
     const { error } = await supabase.rpc('admin_set_matrimony_tier', { p_username: uname, p_tier: tier, p_days: Number(days) || 30 })
@@ -140,6 +176,30 @@ export default function MatrimonyAdmin() {
           </label>
           <button onClick={grant} className="rounded-full border border-[#dbe5e4] px-5 py-2 text-sm font-bold hover:bg-[#f3f7f6]">Add unlocks</button>
         </div>
+      </section>
+
+      <section className="space-y-2 rounded-2xl border border-[#e5eceb] p-4">
+        <h2 className="font-extrabold">Plan requests, Gold and Premium ({reqs.length})</h2>
+        <p className="text-xs text-[#5d7776]">Activate a plan after you have received the payment (UPI or cash) during beta.</p>
+        {reqs.length === 0 ? (
+          <p className="text-sm text-[#5d7776]">No requests yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {reqs.map(r => {
+              const u = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+              return (
+                <li key={r.user_id} className="flex flex-wrap items-center gap-3 rounded-xl bg-[#f3f7f6] px-3 py-2 text-sm">
+                  <span className="font-bold">{u?.full_name ?? 'User'} (@{u?.username ?? 'user'})</span>
+                  <span className="rounded-full bg-[#fff4d6] px-3 py-0.5 text-xs font-bold text-[#7a5600]">Wants {r.tier}</span>
+                  <span className="text-xs text-[#5d7776]">Active: {r.active ?? 'normal'}</span>
+                  {r.active !== r.tier && (
+                    <button onClick={() => activate(r)} className="ml-auto rounded-full bg-[#0f5c5a] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#0b4846]">Activate 30 days</button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </section>
 
       <h2 className="text-lg font-extrabold">Waiting for verification ({items.length})</h2>
