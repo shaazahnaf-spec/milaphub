@@ -10,10 +10,11 @@ type Client = ReturnType<typeof createClient>
 export const BAZAAR_SLOTS = ['bazaar_top', 'bazaar_grid', 'bazaar_side_left', 'bazaar_side_right']
 
 // Apne shehar (ya poore India) ke live ads laata hai, har slot mein max 5, order random
-export function useAds(supabase: Client, slots: string[]) {
+export function useAds(supabase: Client, slots: string[], audience?: string) {
   const [ads, setAds] = useState<Record<string, Ad[]>>({})
   const [cityName, setCityName] = useState('your city')
   const key = slots.join(',')
+  const aud = audience ?? ''
 
   useEffect(() => {
     let cancelled = false
@@ -27,11 +28,14 @@ export function useAds(supabase: Client, slots: string[]) {
       const cRaw = (prof as unknown as { cities: { name: string } | { name: string }[] | null }).cities
       const c = Array.isArray(cRaw) ? cRaw[0] : cRaw
 
-      const { data } = await supabase
+      let q = supabase
         .from('ads')
         .select('id, slot, title, body, image_url, media_type, link_url, advertiser')
         .in('slot', key.split(','))
         .or(`city_id.is.null,city_id.eq.${cityId}`)
+      // Matrimony: user ke tier ke hisaab se brand level (general / mid / luxury)
+      if (aud) q = q.eq('audience', aud)
+      const { data } = await q
 
       const rows = (data ?? []) as Ad[]
       const map: Record<string, Ad[]> = {}
@@ -46,7 +50,7 @@ export function useAds(supabase: Client, slots: string[]) {
     }
     load()
     return () => { cancelled = true }
-  }, [supabase, key])
+  }, [supabase, key, aud])
 
   return { ads, cityName }
 }
