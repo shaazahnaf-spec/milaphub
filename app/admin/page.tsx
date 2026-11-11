@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { storagePath } from '@/lib/image'
 import { categoryLabel, inr, bazaarPath } from '@/lib/bazaar'
+import MatrimonyAdmin from '@/components/MatrimonyAdmin'
 
 type Author = { full_name: string | null; username: string | null }
 type PostRef = { id: string; body: string | null; category: string; media_url: string | null; profiles: Author | Author[] | null }
@@ -101,6 +102,10 @@ const SLOTS = [
   { id: 'bazaar_grid', label: 'Bazaar, inside listings and listing page' },
   { id: 'bazaar_side_left', label: 'Bazaar, left tall banner (large desktop)' },
   { id: 'bazaar_side_right', label: 'Bazaar, right tall banner (large desktop)' },
+  { id: 'matri_1', label: 'Matrimony, column 1' },
+  { id: 'matri_2', label: 'Matrimony, column 2' },
+  { id: 'matri_3', label: 'Matrimony, column 3' },
+  { id: 'matri_4', label: 'Matrimony, column 4' },
 ]
 const slotLabel = (id: string) => SLOTS.find(s => s.id === id)?.label ?? id
 
@@ -114,6 +119,10 @@ const SIZE_HINT: Record<string, string> = {
   bazaar_grid: 'Best size 800 x 800 px (square)',
   bazaar_side_left: 'Best size 600 x 1000 px (3:5, tall banner)',
   bazaar_side_right: 'Best size 600 x 1000 px (3:5, tall banner)',
+  matri_1: 'Best size 900 x 600 px (3:2)',
+  matri_2: 'Best size 900 x 600 px (3:2)',
+  matri_3: 'Best size 900 x 600 px (3:2)',
+  matri_4: 'Best size 900 x 600 px (3:2)',
 }
 const typeFromUrl = (u: string) => (/\.(mp4|webm)(\?.*)?$/i.test(u.trim()) ? 'video' : 'image')
 
@@ -124,13 +133,14 @@ export default function AdminPage() {
   const router = useRouter()
 
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
-  const [tab, setTab] = useState<'reports' | 'comments' | 'ads' | 'bazaar'>('reports')
+  const [tab, setTab] = useState<'reports' | 'comments' | 'ads' | 'bazaar' | 'matrimony'>('reports')
   const [groups, setGroups] = useState<Group[]>([])
   const [cGroups, setCGroups] = useState<CGroup[]>([])
   const [ads, setAds] = useState<Ad[]>([])
   const [cities, setCities] = useState<City[]>([])
   const [isSuper, setIsSuper] = useState(false)
   const [canBazaar, setCanBazaar] = useState(false)
+  const [canMatri, setCanMatri] = useState(false)
   const [pending, setPending] = useState<PendingListing[]>([])
   const [lGroups, setLGroups] = useState<LGroup[]>([])
   const [nowMs, setNowMs] = useState(0)
@@ -147,6 +157,7 @@ export default function AdminPage() {
   const [startsOn, setStartsOn] = useState(() => new Date().toISOString().slice(0, 10))
   const [endsOn, setEndsOn] = useState('')
   const [mediaType, setMediaType] = useState('image')
+  const [audience, setAudience] = useState('general')
   const [fileName, setFileName] = useState('')
   const [uploading, setUploading] = useState(false)
 
@@ -245,14 +256,17 @@ export default function AdminPage() {
       const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       const superAdmin = me?.role === 'admin'
       let bazaar = superAdmin
+      let matri = superAdmin
       if (!superAdmin) {
         const { data: sc } = await supabase.from('admin_scopes').select('scope').eq('user_id', user.id)
         bazaar = (sc ?? []).some(r => r.scope === 'bazaar')
+        matri = (sc ?? []).some(r => r.scope === 'matrimony')
       }
-      if (!superAdmin && !bazaar) { setState('denied'); return }
+      if (!superAdmin && !bazaar && !matri) { setState('denied'); return }
       setIsSuper(superAdmin)
       setCanBazaar(bazaar)
-      setTab(superAdmin ? 'reports' : 'bazaar')
+      setCanMatri(matri)
+      setTab(superAdmin ? 'reports' : bazaar ? 'bazaar' : 'matrimony')
       setState('ok')
       if (superAdmin) {
         loadReports()
@@ -365,6 +379,7 @@ export default function AdminPage() {
       body: body.trim() || null,
       image_url: imageUrl.trim() || null,
       media_type: mediaType,
+      audience,
       link_url: linkUrl.trim(),
       advertiser: advertiser.trim() || null,
       city_id: cityId ? Number(cityId) : null,
@@ -413,7 +428,7 @@ export default function AdminPage() {
     )
   }
 
-  const tabBtn = (t: 'reports' | 'comments' | 'ads' | 'bazaar', label: string) => (
+  const tabBtn = (t: 'reports' | 'comments' | 'ads' | 'bazaar' | 'matrimony', label: string) => (
     <button
       onClick={() => setTab(t)}
       className={`rounded-full px-5 py-2 text-sm font-bold ${tab === t ? 'bg-[#0f5c5a] text-white' : 'bg-[#f3f7f6] text-[#12302f] hover:bg-[#e3efee]'}`}
@@ -437,6 +452,7 @@ export default function AdminPage() {
           {isSuper && tabBtn('comments', `Comment reports (${cGroups.length})`)}
           {isSuper && tabBtn('ads', `Ads (${ads.length})`)}
           {canBazaar && tabBtn('bazaar', `Bazaar (${pending.length})`)}
+          {canMatri && tabBtn('matrimony', 'Matrimony')}
         </div>
 
         {tab === 'reports' && (
@@ -517,6 +533,8 @@ export default function AdminPage() {
             })
           )
         )}
+
+        {tab === 'matrimony' && canMatri && <MatrimonyAdmin />}
 
         {tab === 'bazaar' && canBazaar && (
           <>
@@ -620,6 +638,13 @@ export default function AdminPage() {
                   <select value={cityId} onChange={e => setCityId(e.target.value)} className={field + ' mt-1'}>
                     <option value="">All India</option>
                     {cities.map(c => <option key={c.id} value={c.id}>{c.name}, {c.state}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">Brand level (Matrimony columns only)
+                  <select value={audience} onChange={e => setAudience(e.target.value)} className={field + ' mt-1'}>
+                    <option value="general">General brands (shown to Normal plan)</option>
+                    <option value="mid">Mid-premium brands (shown to Gold plan)</option>
+                    <option value="luxury">Elite luxury brands (shown to Premium plan)</option>
                   </select>
                 </label>
                 <label className="text-sm font-semibold">Title (max 80)
