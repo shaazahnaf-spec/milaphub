@@ -1,16 +1,14 @@
 "use client";
 
-// A minimal post card so the Posts tab works on day one.
-// To get like / comment / share / save / report for page posts, replace this
-// component's usage in app/pages/[username]/page.jsx with your EXISTING PostCard
-// (it already works on rows of the posts table, which now also carry page_id).
-// If you keep your own PostCard, render videos with videoEmbedSrc() from lib/pages/video.js.
+// Post card for the Posts tab of a page. Includes Like, Comment and Report (PostActions)
+// plus Delete for the page team.
 
 import { readPost } from "@/lib/pages/postsAdapter";
 import { timeAgo } from "@/lib/pages/config";
 import { videoEmbedSrc } from "@/lib/pages/video";
+import PostActions from "@/components/pages/PostActions";
 
-export default function PagePostCard({ row, canDelete, onDelete }) {
+export default function PagePostCard({ row, user, canDelete, onDelete }) {
   const post = readPost(row);
   const videoSrc = post.video ? videoEmbedSrc(post.video.provider, post.video.id) : null;
 
@@ -39,6 +37,7 @@ export default function PagePostCard({ row, canDelete, onDelete }) {
           />
         </div>
       )}
+      <PostActions postId={post.id} user={user} />
     </article>
   );
 }
