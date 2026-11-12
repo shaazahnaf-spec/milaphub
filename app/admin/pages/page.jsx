@@ -6,11 +6,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import BazaarHeader from "@/components/BazaarHeader";
 
 const cleanSearch = (s) => s.replace(/[,()%*\\]/g, " ").trim();
 const FIELDS = "id,username,name,category,city,state,is_verified,is_hidden,followers_count,created_at";
 
-export default function AdminPages() {
+function AdminPagesBody() {
   const [ok, setOk] = useState(null); // null = checking
   const [tab, setTab] = useState("reports");
   const [reports, setReports] = useState([]);
@@ -136,5 +137,14 @@ export default function AdminPages() {
         </section>
       )}
     </main>
+  );
+}
+
+export default function AdminPages() {
+  return (
+    <>
+      <BazaarHeader title="Pages admin" />
+      <AdminPagesBody />
+    </>
   );
 }
