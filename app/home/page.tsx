@@ -542,6 +542,7 @@ export default function HomePage() {
   const selectTab = (t: string) => {
     if (t === 'Bazaar') router.push('/bazaar')
     else if (t === 'Matrimony') router.push('/matrimony')
+    else if (t === 'Pages') router.push('/pages')
     else setTab(t)
   }
 
@@ -733,6 +734,7 @@ export default function HomePage() {
                     if (label === 'Saved posts') router.push('/saved')
                     if (label === 'Friends') router.push('/messages')
                     if (label === 'Matrimony dashboard') router.push('/matrimony')
+                    if (label === 'Pages') router.push('/pages')
                   }}
                   className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]"
                 >
