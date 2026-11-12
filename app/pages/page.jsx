@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import BazaarHeader from "@/components/BazaarHeader";
 import { PAGE_CATEGORIES, INDIAN_STATES } from "@/lib/pages/config";
 import PageCard from "@/components/pages/PageCard";
 
@@ -19,7 +20,7 @@ const TABS = [
 // Removes characters that break PostgREST's .or() filter syntax.
 const cleanSearch = (s) => s.replace(/[,()%*\\]/g, " ").trim();
 
-export default function PagesDirectory() {
+function PagesDirectoryBody() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("discover");
   const [q, setQ] = useState("");
@@ -96,8 +97,7 @@ export default function PagesDirectory() {
 
   return (
     <main className="mx-auto max-w-2xl p-4 sm:p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Pages</h1>
+      <div className="flex items-center justify-end">
         <Link href="/pages/new" className="rounded-lg bg-emerald-700 px-4 py-2 text-sm text-white">
           Page banaiye
         </Link>
@@ -158,5 +158,14 @@ export default function PagesDirectory() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function PagesDirectory() {
+  return (
+    <>
+      <BazaarHeader title="Pages" />
+      <PagesDirectoryBody />
+    </>
   );
 }
