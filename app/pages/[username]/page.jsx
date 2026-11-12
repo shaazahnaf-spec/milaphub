@@ -167,7 +167,7 @@ function PageProfileBody() {
               </p>
             )}
             {posts.map((row) => (
-              <PagePostCard key={row.id} row={row} canDelete={isAdmin} onDelete={removePost} />
+              <PagePostCard key={row.id} row={row} user={user} canDelete={isAdmin} onDelete={removePost} />
             ))}
           </section>
         </>
@@ -216,6 +216,9 @@ function Composer({ page, user, onPosted }) {
 
     setBusy(true);
     try {
+      // Your feed filters posts by city, so every page post carries the posting admin's city.
+      const { data: prof } = await supabase.from("profiles").select("city_id").eq("id", user.id).maybeSingle();
+      if (!prof?.city_id) throw new Error("Pehle apni profile mein city chuniye, phir post kijiye.");
       let imageUrl = null;
       let video = null;
 
@@ -231,7 +234,7 @@ function Composer({ page, user, onPosted }) {
       }
 
       const { data, error: insErr } = await supabase.from(POSTS.table)
-        .insert(buildPostInsert({ userId: user.id, pageId: page.id, text: text.trim(), imageUrl, video }))
+        .insert(buildPostInsert({ userId: user.id, pageId: page.id, text: text.trim(), imageUrl, video, cityId: prof.city_id }))
         .select("*").single();
       if (insErr) throw insErr;
 
