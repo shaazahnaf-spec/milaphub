@@ -255,6 +255,7 @@ export default function HomePage() {
       .from('posts')
       .select('id, author_id, body, category, allow_tips, status, created_at, edited_at, media_url, post_likes(count), post_comments(count), profiles!author_id(full_name, username)')
       .eq('city_id', profile.city_id)
+      .is('page_id', null)
       .order('created_at', { ascending: false })
       .limit(30)
     if (category !== 'all') q = q.eq('category', category)
