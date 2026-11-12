@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import BazaarHeader from "@/components/BazaarHeader";
 import { CATEGORY_LABEL, uploadPageImage } from "@/lib/pages/config";
 import { POSTS, buildPostInsert } from "@/lib/pages/postsAdapter";
 import { uploadVideoToBunny, MAX_VIDEO_MB } from "@/lib/pages/video";
@@ -28,7 +29,7 @@ async function share(url, title) {
   } catch { /* cancelled */ }
 }
 
-export default function PageProfile() {
+function PageProfileBody() {
   const { username } = useParams();
   const [user, setUser] = useState(null);
   const [page, setPage] = useState(null);
@@ -332,5 +333,14 @@ function ReportDialog({ page, user, onClose }) {
         )}
       </div>
     </div>
+  );
+}
+
+export default function PageProfile() {
+  return (
+    <>
+      <BazaarHeader title="Page" />
+      <PageProfileBody />
+    </>
   );
 }
