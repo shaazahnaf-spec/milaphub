@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import BazaarHeader from "@/components/BazaarHeader";
 import {
   PAGE_CATEGORIES, SUBCATEGORIES, INDIAN_STATES, CITY_SUGGESTIONS,
   MAX_PAGES_PER_ACCOUNT, USERNAME_RE, MAX_IMAGE_MB,
@@ -14,7 +15,7 @@ import {
 
 const STEPS = ["Category", "Details", "Location", "Photos", "About"];
 
-export default function NewPageWizard() {
+function NewPageWizardBody() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -269,5 +270,14 @@ export default function NewPageWizard() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function NewPageWizard() {
+  return (
+    <>
+      <BazaarHeader title="New page" />
+      <NewPageWizardBody />
+    </>
   );
 }
