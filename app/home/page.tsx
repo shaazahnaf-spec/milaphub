@@ -762,8 +762,21 @@ export default function HomePage() {
             </div>
           ) : (
             <>
+              {/* Services (phones only: the left sidebar is hidden below lg) */}
+              <nav aria-label="Services" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {[
+                  ['Friends', '/messages'], ['Reels', '/reels'], ['Bazaar', '/bazaar'],
+                  ['Pages', '/pages'], ['Matrimony', '/matrimony'], ['Saved posts', '/saved'],
+                ].map(([label, href]) => (
+                  <Link key={href} href={href}
+                    className="shrink-0 rounded-full border border-[#dbe5e4] bg-[#f3f7f6] px-4 py-2 text-sm font-semibold text-[#12302f] hover:bg-[#e3efee]">
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+
               {/* Stories */}
-              <section aria-label="Stories" className="flex gap-3 overflow-x-auto pb-1">
+              <section aria-label="Stories" className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                   onClick={() => setMsg('Stories are coming soon.')}
                   className="relative flex h-44 w-28 shrink-0 flex-col items-center justify-end rounded-2xl border border-[#e5eceb] bg-[#f3f7f6] pb-3 hover:bg-[#e3efee]"
@@ -786,7 +799,7 @@ export default function HomePage() {
 
               {/* Composer */}
               <form onSubmit={submit} className="rounded-2xl border border-[#e5eceb] bg-white p-3 shadow-sm sm:p-4">
-                <div className="flex items-start gap-3">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-2 sm:flex-nowrap">
                   <Avatar name={name} />
                   <textarea
                     ref={taRef}
@@ -800,12 +813,12 @@ export default function HomePage() {
                     rows={1}
                     aria-label="Write a post"
                     placeholder={`What's on your mind, ${name.split(' ')[0]}?`}
-                    className="min-h-[44px] w-full resize-none rounded-3xl bg-[#f3f7f6] px-5 py-3 text-[15px] leading-snug outline-none placeholder:text-[#5d7776] focus:ring-2 focus:ring-[#0f5c5a]/30"
+                    className="min-h-[44px] min-w-0 flex-1 resize-none rounded-3xl bg-[#f3f7f6] px-4 py-3 text-sm leading-snug outline-none placeholder:text-[#5d7776] focus:ring-2 focus:ring-[#0f5c5a]/30 sm:px-5 sm:text-[15px]"
                   />
-                  <div className="flex items-center gap-0.5 pt-0.5">
+                  <div className="flex w-full items-center justify-end gap-0.5 sm:w-auto sm:pt-0.5">
                     <button type="button" title="Video" aria-label="Add video"
-                      onClick={() => setMsg('Video uploads are coming soon.')}
-                      className="hidden h-10 w-10 place-items-center rounded-full text-[#e11d48] hover:bg-[#f3f7f6] sm:grid">
+                      onClick={() => router.push('/reels/upload')}
+                      className="grid h-10 w-10 place-items-center rounded-full text-[#e11d48] hover:bg-[#f3f7f6]">
                       <Icon name="Video" size={22} />
                     </button>
                     <button type="button" title="Photo" aria-label="Add photo"
