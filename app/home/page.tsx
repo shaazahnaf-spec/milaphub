@@ -544,6 +544,7 @@ export default function HomePage() {
     if (t === 'Bazaar') router.push('/bazaar')
     else if (t === 'Matrimony') router.push('/matrimony')
     else if (t === 'Pages') router.push('/pages')
+    else if (t === 'Reels') router.push('/reels')
     else setTab(t)
   }
 
