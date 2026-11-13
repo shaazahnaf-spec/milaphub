@@ -727,17 +727,13 @@ export default function HomePage() {
                 </div>
               </div>
               {[
-                ['Fr', 'Friends'], ['Pg', 'Pages'], ['Gr', 'Groups'], ['Sv', 'Saved posts'],
-                ['Mt', 'Matrimony dashboard'], ['₹', 'Treats and payouts'], ['St', 'Settings'],
-              ].map(([ic, label]) => (
+                ['Fr', 'Friends', '/messages'], ['Rl', 'Reels', '/reels'], ['Bz', 'Bazaar', '/bazaar'],
+                ['Pg', 'Pages', '/pages'], ['Mt', 'Matrimony dashboard', '/matrimony'], ['Gr', 'Groups', ''],
+                ['Sv', 'Saved posts', '/saved'], ['₹', 'Treats and payouts', ''], ['St', 'Settings', ''],
+              ].map(([ic, label, href]) => (
                 <button
                   key={label}
-                  onClick={() => {
-                    if (label === 'Saved posts') router.push('/saved')
-                    if (label === 'Friends') router.push('/messages')
-                    if (label === 'Matrimony dashboard') router.push('/matrimony')
-                    if (label === 'Pages') router.push('/pages')
-                  }}
+                  onClick={() => { if (href) router.push(href) }}
                   className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm font-semibold hover:bg-[#f3f7f6]"
                 >
                   <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e3efee] text-[11px] font-bold text-[#0f5c5a]">{ic}</span>

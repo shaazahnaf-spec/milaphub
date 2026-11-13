@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import BazaarHeader from '@/components/BazaarHeader'
 import AdSlot from '@/components/AdSlot'
+import PublicJoinBanner from '@/components/PublicJoinBanner'
+import PublicServiceBar from '@/components/PublicServiceBar'
 import { useAds, BAZAAR_SLOTS } from '@/lib/useAds'
 import { CATEGORIES, STATUS, categoryLabel, one, priceLabel, type Listing } from '@/lib/bazaar'
 
@@ -22,6 +24,7 @@ export default function BazaarPage() {
   const [me, setMe] = useState<string | null>(null)
   const [cityId, setCityId] = useState<number | null>(null)
   const [cityName, setCityName] = useState('your city')
+  const [cities, setCities] = useState<{ id: number; name: string; state: string }[]>([])
   const [view, setView] = useState<View>('browse')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [category, setCategory] = useState('all')
@@ -36,7 +39,22 @@ export default function BazaarPage() {
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/login'); return }
+      if (!user) {
+        // Visitor: browse publicly. City = ?city=ID in the link, the last choice, or Hyderabad.
+        const { data: cs } = await supabase.from('cities').select('id, name, state').order('name')
+        const list = (cs ?? []) as { id: number; name: string; state: string }[]
+        setCities(list)
+        let chosen: number | null = null
+        try {
+          const fromUrl = Number(new URLSearchParams(window.location.search).get('city'))
+          const fromStore = Number(window.localStorage.getItem('milaphub-city'))
+          chosen = [fromUrl, fromStore].find(n => Number.isInteger(n) && n > 0 && list.some(c => c.id === n)) ?? null
+        } catch { /* storage blocked */ }
+        const pick = list.find(c => c.id === chosen) ?? list.find(c => c.name.toLowerCase() === 'hyderabad') ?? list[0]
+        if (pick) { setCityId(pick.id); setCityName(pick.name) }
+        else { setLoading(false); setError('City list load nahi ho payi.') }
+        return
+      }
       const { data } = await supabase
         .from('profiles').select('city_id, cities(name)').eq('id', user.id).maybeSingle()
       if (!data?.city_id) { router.replace('/onboarding'); return }
@@ -56,10 +74,11 @@ export default function BazaarPage() {
   }, [q])
 
   const load = useCallback(async () => {
-    if (!me || !cityId) return
+    if (!cityId) return
     setLoading(true); setError('')
 
     if (view === 'saved') {
+      if (!me) { setLoading(false); return }
       const { data: sv, error: e1 } = await supabase
         .from('saved_listings').select('listing_id').eq('user_id', me).order('created_at', { ascending: false })
       if (e1) { setLoading(false); return setError(e1.message) }
@@ -75,7 +94,7 @@ export default function BazaarPage() {
 
     let query = supabase.from('listings').select(SELECT)
     if (view === 'mine') {
-      query = query.eq('seller_id', me)
+      query = query.eq('seller_id', me as string)
     } else {
       query = query.eq('city_id', cityId).eq('status', 'approved').gt('expires_at', new Date().toISOString())
       if (typeFilter !== 'all') query = query.eq('listing_type', typeFilter)
@@ -91,7 +110,7 @@ export default function BazaarPage() {
   useEffect(() => { load() }, [load])
 
   async function toggleSave(id: string) {
-    if (!me) return
+    if (!me) { router.push('/login'); return }
     const isSaved = saved.has(id)
     setSaved(prev => {
       const n = new Set(prev)
@@ -111,6 +130,17 @@ export default function BazaarPage() {
     } else if (view === 'saved' && isSaved) {
       setItems(list => list.filter(l => l.id !== id))
     }
+  }
+
+  function changeCity(id: number) {
+    const c = cities.find(x => x.id === id)
+    if (!c) return
+    setCityId(c.id)
+    setCityName(c.name)
+    try {
+      window.localStorage.setItem('milaphub-city', String(c.id))
+      window.history.replaceState(null, '', `/bazaar?city=${c.id}`)
+    } catch { /* ignore */ }
   }
 
   const tab = (v: View, label: string) => (
@@ -140,10 +170,17 @@ export default function BazaarPage() {
         <Link href="/bazaar/new" className="rounded-full bg-[#f0a500] px-5 py-2 text-sm font-bold text-[#3a2900] hover:brightness-105">
           Sell or request
         </Link>
-        <Link href="/home" className="hidden rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6] sm:block">
-          Back to home
-        </Link>
+        {me ? (
+          <Link href="/home" className="hidden rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6] sm:block">
+            Back to home
+          </Link>
+        ) : (
+          <Link href="/login" className="rounded-full border border-[#dbe5e4] px-4 py-2 text-sm font-semibold hover:bg-[#f3f7f6]">
+            Log in
+          </Link>
+        )}
       </BazaarHeader>
+      {!me && <PublicServiceBar current="/bazaar" />}
 
       <div className="mx-auto max-w-[1400px] px-4 py-5 xl:grid xl:grid-cols-[200px_minmax(0,1fr)_200px] xl:gap-6">
         {/* Left skyscraper ad (large desktop only) */}
@@ -156,8 +193,20 @@ export default function BazaarPage() {
         <main className="mx-auto w-full max-w-5xl space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {tab('browse', `Buy in ${cityName}`)}
-            {tab('saved', `Saved items${saved.size ? ` (${saved.size})` : ''}`)}
-            {tab('mine', 'My listings')}
+            {me && tab('saved', `Saved items${saved.size ? ` (${saved.size})` : ''}`)}
+            {me && tab('mine', 'My listings')}
+            {!me && cities.length > 0 && (
+              <label className="ml-auto flex items-center gap-2 text-sm font-semibold">
+                <span>City</span>
+                <select
+                  value={cityId ?? ''}
+                  onChange={e => changeCity(Number(e.target.value))}
+                  className="rounded-full border border-[#dbe5e4] bg-white px-4 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                >
+                  {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            )}
           </div>
 
           {view === 'browse' && (
@@ -203,7 +252,7 @@ export default function BazaarPage() {
               {view === 'browse' && `Nothing here yet in ${cityName}. Be the first to list or request something!`}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {items.map((l, i) => {
                 const isSaved = saved.has(l.id)
                 const wanted = l.listing_type === 'wanted'
@@ -277,6 +326,8 @@ export default function BazaarPage() {
           </div>
         </aside>
       </div>
+
+      <PublicJoinBanner message="Join MilapHub to like, comment, and post your own items." />
     </div>
   )
 }
