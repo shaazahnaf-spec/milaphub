@@ -2,7 +2,7 @@
 
 type Props = { lat: number | null; lng: number | null; locality: string | null; cityName: string }
 
-// Sirf approximate area dikhata hai (~1 km), exact address kabhi nahi
+// Shows only an approximate area (~1 km), never the exact address
 export default function AreaMap({ lat, lng, locality, cityName }: Props) {
   const place = [locality, cityName].filter(Boolean).join(', ')
 

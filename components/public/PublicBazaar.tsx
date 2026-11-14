@@ -74,11 +74,11 @@ export default async function PublicBazaar({ params }: { params: Params }) {
         {CATEGORIES.map(c => <Link key={c.id} href={catHref(c.id)} className={chip(category === c.id)}>{c.label}</Link>)}
       </div>
 
-      {failed && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Listings load nahi ho payi. Thodi der baad dobara koshish kijiye.</p>}
+      {failed && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Listings could not be loaded. Please try again in a moment.</p>}
 
       {!failed && items.length === 0 && (
         <p className="mt-6 rounded-2xl bg-white p-8 text-center text-[#5d7776]">
-          {city ? `${city.name} mein abhi koi listing nahi mili.` : 'City list load nahi hui.'}
+          {city ? `No listings in ${city.name} yet.` : 'The city list could not be loaded.'}
         </p>
       )}
 

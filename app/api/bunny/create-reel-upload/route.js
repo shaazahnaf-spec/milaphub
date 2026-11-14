@@ -22,11 +22,11 @@ const intOrNull = (v, min, max) => (Number.isInteger(v) && v >= min && v <= max 
 export async function POST(request) {
   const apiKey = process.env.BUNNY_STREAM_API_KEY;
   const libraryId = process.env.BUNNY_STREAM_LIBRARY_ID;
-  if (!apiKey || !libraryId) return fail("Video upload abhi set up nahi hai.", 500);
+  if (!apiKey || !libraryId) return fail("Video upload is not set up yet.", 500);
 
   // Who is calling?
   const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  if (!token) return fail("Pehle login kijiye.", 401);
+  if (!token) return fail("Please log in first.", 401);
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -35,15 +35,15 @@ export async function POST(request) {
   );
   const { data: auth, error: authError } = await supabase.auth.getUser(token);
   const user = auth?.user;
-  if (authError || !user) return fail("Login ka session expire ho gaya. Dobara login kijiye.", 401);
+  if (authError || !user) return fail("Your session has expired. Please log in again.", 401);
 
   // Validate input
   let body;
-  try { body = await request.json(); } catch { return fail("Request galat hai.", 400); }
+  try { body = await request.json(); } catch { return fail("Invalid request.", 400); }
   const title = String(body?.title || "").trim();
   const description = String(body?.description || "").trim();
-  if (title.length < 2 || title.length > 100) return fail("Title 2 se 100 akshar ka ho.", 400);
-  if (description.length > 500) return fail("Description 500 akshar se chhota ho.", 400);
+  if (title.length < 2 || title.length > 100) return fail("Title must be 2 to 100 characters.", 400);
+  if (description.length > 500) return fail("Description must be 500 characters or fewer.", 400);
   const width = intOrNull(body?.width, 1, 10000);
   const height = intOrNull(body?.height, 1, 10000);
   const duration = intOrNull(Math.round(Number(body?.duration)), 0, 86400);
@@ -54,7 +54,7 @@ export async function POST(request) {
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id).gte("created_at", since);
   if ((count || 0) >= DAILY_REEL_LIMIT) {
-    return fail(`Aaj ke liye ${DAILY_REEL_LIMIT} reels upload ho chuki hain. Kal dobara koshish kijiye.`, 429);
+    return fail(`You have reached today's limit of ${DAILY_REEL_LIMIT} reel uploads. Please try again tomorrow.`, 429);
   }
 
   // Create the empty video in Bunny
@@ -63,9 +63,9 @@ export async function POST(request) {
     headers: { AccessKey: apiKey, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ title }),
   });
-  if (!created.ok) return fail("Video server se baat nahi ho payi. Thodi der baad koshish kijiye.", 502);
+  if (!created.ok) return fail("Could not reach the video server. Please try again in a moment.", 502);
   const videoId = (await created.json())?.guid;
-  if (!videoId) return fail("Video server se baat nahi ho payi.", 502);
+  if (!videoId) return fail("Could not reach the video server.", 502);
 
   // Save the reel (stays hidden from the public until the browser marks it ready)
   const { data: reel, error: insertError } = await supabase.from("reels").insert({
@@ -83,7 +83,7 @@ export async function POST(request) {
     await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos/${videoId}`, {
       method: "DELETE", headers: { AccessKey: apiKey },
     }).catch(() => {});
-    return fail("Reel save nahi ho payi. Dobara koshish kijiye.", 500);
+    return fail("Could not save the reel. Please try again.", 500);
   }
 
   // Sign the TUS upload: sha256(libraryId + apiKey + expiry + videoId)

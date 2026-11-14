@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'MilapHub',
-  description: 'Hyderabad ka apna community platform',
+  description: "Hyderabad's own community platform",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-// FILE: components/AdSlot.tsx  (GitHub mein is path par paste karo)
+// FILE: components/AdSlot.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -36,19 +36,19 @@ export default function AdSlot({
   const adId = ad?.id
   const mediaType = ad?.media_type
 
-  // "Reduce motion" wale logon ke liye auto slideshow aur video autoplay band
+  // Autoplay of the slideshow and videos is turned off for people who prefer reduced motion
   useEffect(() => {
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [])
 
-  // Har baar jab koi ad dikhta hai, ek impression ginti hoti hai (sirf jab tab khula ho)
+  // Every time an ad is shown it counts as one impression (only while the tab is open)
   useEffect(() => {
     if (adId && document.visibilityState === 'visible') {
       supabase.rpc('ad_impression', { p_id: adId }).then(() => {})
     }
   }, [adId, supabase])
 
-  // Slideshow: image 6 second, video 10 second. Mouse upar ho to ruk jata hai.
+  // Slideshow: 6 seconds per image, 10 seconds per video. It pauses while the mouse is over it.
   useEffect(() => {
     if (count < 2 || paused || reduced) return
     let inner: ReturnType<typeof setTimeout> | undefined

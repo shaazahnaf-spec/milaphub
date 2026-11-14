@@ -24,8 +24,8 @@ export default function PublicHeader() {
     setBusy(false)
     if (err) {
       setError(err.message.toLowerCase().includes('confirm')
-        ? 'Pehle apna email verify karo.'
-        : 'Email ya password galat hai.')
+        ? 'Please verify your email first.'
+        : 'Incorrect email or password.')
       return
     }
     router.refresh() // the same page now renders for a logged-in user

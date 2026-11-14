@@ -28,8 +28,8 @@ export default function Login() {
     if (error) {
       return setError(
         error.message.toLowerCase().includes('confirm')
-          ? 'Pehle apna email verify karo. Create account se code mangwao.'
-          : 'Email ya password galat hai.'
+          ? 'Please verify your email first. Use Create account to get a code.'
+          : 'Incorrect email or password.'
       )
     }
     done()
@@ -37,7 +37,7 @@ export default function Login() {
 
   async function signUp(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 8) return setError('Password kam se kam 8 characters ka ho.')
+    if (password.length < 8) return setError('Password must be at least 8 characters.')
     setBusy(true); setError('')
     const { data, error } = await supabase.auth.signUp({
       email, password, options: { data: { full_name: name.trim() } },
@@ -55,7 +55,7 @@ export default function Login() {
       email, token: code, type: mode === 'signup-code' ? 'signup' : 'email',
     })
     setBusy(false)
-    if (error) return setError('Code galat hai ya expire ho gaya.')
+    if (error) return setError('That code is incorrect or has expired.')
     done()
   }
 
@@ -66,7 +66,7 @@ export default function Login() {
       email, options: { shouldCreateUser: false },
     })
     setBusy(false)
-    if (error) return setError('Is email se account nahi mila, ya code bhejne mein dikkat aayi.')
+    if (error) return setError('No account was found for this email, or the code could not be sent.')
     go('otp-code')
   }
 
@@ -79,7 +79,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="mb-5 text-center">
           <h1 className="text-4xl font-extrabold text-[#0f5c5a]">MilapHub</h1>
-          <p className="mt-1 text-[#5d7776]">Apne shehar ke logon se milo, judo aur bazaar karo.</p>
+          <p className="mt-1 text-[#5d7776]">Meet people in your city, connect, and buy and sell locally.</p>
         </div>
 
         <div className="rounded-2xl border border-[#dbe5e4] bg-white p-6 shadow-sm">
@@ -89,10 +89,10 @@ export default function Login() {
                 placeholder="Email address" autoComplete="email" className={input} />
               <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="Password" autoComplete="current-password" className={input} />
-              <button disabled={busy} className={primary}>{busy ? 'Ruko...' : 'Log in'}</button>
+              <button disabled={busy} className={primary}>{busy ? 'Please wait...' : 'Log in'}</button>
               <div className="text-center">
                 <button type="button" onClick={() => go('otp-email')} className={link}>
-                  Password bhool gaye? Email code se login karo
+                  Forgot your password? Log in with an email code
                 </button>
               </div>
               <hr className="border-[#dbe5e4]" />
@@ -105,34 +105,34 @@ export default function Login() {
 
           {mode === 'signup' && (
             <form onSubmit={signUp} className="space-y-3">
-              <h2 className="text-xl font-bold text-[#12302f]">Naya account banao</h2>
-              <p className="text-sm text-[#5d7776]">Ye free hai aur 1 minute lagta hai.</p>
+              <h2 className="text-xl font-bold text-[#12302f]">Create a new account</h2>
+              <p className="text-sm text-[#5d7776]">It is free and takes about a minute.</p>
               <input required value={name} onChange={e => setName(e.target.value)}
-                placeholder="Poora naam" autoComplete="name" className={input} />
+                placeholder="Full name" autoComplete="name" className={input} />
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="Email address (Gmail, Yahoo, Outlook, koi bhi)" autoComplete="email" className={input} />
+                placeholder="Email address" autoComplete="email" className={input} />
               <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Naya password (8+ characters)" autoComplete="new-password" className={input} />
+                placeholder="New password (8+ characters)" autoComplete="new-password" className={input} />
               <p className="text-xs text-[#5d7776]">
-                Sign up karke aap hamare <a className="underline" href="/terms">Terms</a> aur{' '}
-                <a className="underline" href="/privacy">Privacy Policy</a> se sahmat hain.
+                By signing up, you agree to our <a className="underline" href="/terms">Terms</a> and{' '}
+                <a className="underline" href="/privacy">Privacy Policy</a>.
               </p>
-              <button disabled={busy} className={primary}>{busy ? 'Ruko...' : 'Sign up'}</button>
+              <button disabled={busy} className={primary}>{busy ? 'Please wait...' : 'Sign up'}</button>
               <div className="text-center">
-                <button type="button" onClick={() => go('login')} className={link}>Pehle se account hai? Log in</button>
+                <button type="button" onClick={() => go('login')} className={link}>Already have an account? Log in</button>
               </div>
             </form>
           )}
 
           {mode === 'otp-email' && (
             <form onSubmit={sendLoginCode} className="space-y-3">
-              <h2 className="text-xl font-bold text-[#12302f]">Email code se login</h2>
-              <p className="text-sm text-[#5d7776]">Hum aapke email par 6-digit code bhejenge.</p>
+              <h2 className="text-xl font-bold text-[#12302f]">Log in with an email code</h2>
+              <p className="text-sm text-[#5d7776]">We will send a 6-digit code to your email.</p>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="Email address" autoComplete="email" className={input} />
-              <button disabled={busy} className={primary}>{busy ? 'Bhej rahe hain...' : 'Send code'}</button>
+              <button disabled={busy} className={primary}>{busy ? 'Sending...' : 'Send code'}</button>
               <div className="text-center">
-                <button type="button" onClick={() => go('login')} className={link}>Wapas jao</button>
+                <button type="button" onClick={() => go('login')} className={link}>Back to log in</button>
               </div>
             </form>
           )}
@@ -140,14 +140,14 @@ export default function Login() {
           {(mode === 'signup-code' || mode === 'otp-code') && (
             <form onSubmit={verify} className="space-y-3">
               <h2 className="text-xl font-bold text-[#12302f]">Code daalo</h2>
-              <p className="text-sm text-[#5d7776]">{email} par bheja gaya code yahan likho. Spam folder bhi dekh lena.</p>
+              <p className="text-sm text-[#5d7776]">Enter the code we sent to {email}. Check your spam folder too.</p>
               <input required inputMode="numeric" maxLength={8} value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="123456" autoComplete="one-time-code"
                 className={input + ' text-center text-2xl tracking-[0.4em]'} />
-              <button disabled={busy} className={primary}>{busy ? 'Check ho raha hai...' : 'Verify'}</button>
+              <button disabled={busy} className={primary}>{busy ? 'Checking...' : 'Verify'}</button>
               <div className="text-center">
-                <button type="button" onClick={() => go('login')} className={link}>Wapas jao</button>
+                <button type="button" onClick={() => go('login')} className={link}>Back to log in</button>
               </div>
             </form>
           )}

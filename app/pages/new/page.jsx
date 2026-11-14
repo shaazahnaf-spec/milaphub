@@ -63,19 +63,19 @@ function NewPageWizardBody() {
   }
 
   function validate() {
-    if (step === 0 && !f.category) return "Category chuniye.";
+    if (step === 0 && !f.category) return "Please choose a category.";
     if (step === 1) {
-      if (f.name.trim().length < 2) return "Page ka naam kam se kam 2 akshar ka ho.";
-      if (!f.subcategory) return "Sub-category chuniye.";
-      if (!USERNAME_RE.test(f.username)) return "Username 3 se 30 characters ka ho: sirf a-z, 0-9 aur _.";
-      if (usernameState === "taken") return "Yeh username pehle se liya hua ya reserved hai. Doosra chuniye.";
-      if (usernameState === "checking") return "Username check ho raha hai, ek second ruko.";
+      if (f.name.trim().length < 2) return "The page name must be at least 2 characters.";
+      if (!f.subcategory) return "Please choose a sub-category.";
+      if (!USERNAME_RE.test(f.username)) return "Username must be 3 to 30 characters: a-z, 0-9 and _ only.";
+      if (usernameState === "taken") return "That username is taken or reserved. Please choose another.";
+      if (usernameState === "checking") return "Checking the username, please wait a moment.";
     }
     if (step === 2) {
-      if (!f.state) return "State chuniye.";
-      if (f.city.trim().length < 2) return "City ya town likhiye.";
+      if (!f.state) return "Please choose a state.";
+      if (f.city.trim().length < 2) return "Please enter a city or town.";
     }
-    if (step === 4 && f.phone.trim() && !cleanPhone(f.phone)) return "Sahi 10 digit mobile number daaliye ya khaali chhod dijiye.";
+    if (step === 4 && f.phone.trim() && !cleanPhone(f.phone)) return "Enter a valid 10-digit mobile number or leave it empty.";
     return "";
   }
 
@@ -112,9 +112,9 @@ function NewPageWizardBody() {
       }).select("id, username").single();
 
       if (e) {
-        if (e.message?.includes("USERNAME_RESERVED")) throw new Error("Yeh username reserved hai. Doosra chuniye.");
-        if (e.message?.includes("PAGE_LIMIT")) throw new Error(`Ek account par maximum ${MAX_PAGES_PER_ACCOUNT} pages ban sakte hain.`);
-        if (e.code === "23505") throw new Error("Yeh username kisi ne le liya. Doosra chuniye.");
+        if (e.message?.includes("USERNAME_RESERVED")) throw new Error("That username is reserved. Please choose another.");
+        if (e.message?.includes("PAGE_LIMIT")) throw new Error(`One account can have at most ${MAX_PAGES_PER_ACCOUNT} pages.`);
+        if (e.code === "23505") throw new Error("That username was just taken. Please choose another.");
         throw e;
       }
 
@@ -123,7 +123,7 @@ function NewPageWizardBody() {
 
       router.push(`/pages/${page.username}`);
     } catch (err) {
-      setError(err.message || "Page nahi ban paya. Dobara koshish kijiye.");
+      setError(err.message || "Could not create the page. Please try again.");
       setBusy(false);
     }
   }
@@ -133,7 +133,7 @@ function NewPageWizardBody() {
   if (!user) {
     return (
       <main className="mx-auto max-w-xl p-6">
-        <h1 className="text-2xl font-semibold">Page banane ke liye login kijiye</h1>
+        <h1 className="text-2xl font-semibold">Log in to create a page</h1>
         <Link href="/login?next=/pages/new" className="mt-4 inline-block rounded-lg bg-emerald-700 px-4 py-2 text-white">Login</Link>
       </main>
     );
@@ -142,20 +142,20 @@ function NewPageWizardBody() {
   if (pageCount >= MAX_PAGES_PER_ACCOUNT) {
     return (
       <main className="mx-auto max-w-xl p-6">
-        <h1 className="text-2xl font-semibold">Page limit poori ho gayi</h1>
-        <p className="mt-2 text-stone-600">Ek account par maximum {MAX_PAGES_PER_ACCOUNT} pages ban sakte hain.</p>
-        <Link href="/pages" className="mt-4 inline-block text-emerald-700 underline">Apne pages dekhiye</Link>
+        <h1 className="text-2xl font-semibold">Page limit reached</h1>
+        <p className="mt-2 text-stone-600">One account can have at most {MAX_PAGES_PER_ACCOUNT} pages.</p>
+        <Link href="/pages" className="mt-4 inline-block text-emerald-700 underline">View your pages</Link>
       </main>
     );
   }
 
   const cities = CITY_SUGGESTIONS[f.state] || [];
   const input = "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20";
-  const hint = { idle: "", checking: "Check ho raha hai...", ok: "Available hai", taken: "Yeh available nahi hai", invalid: "Sirf a-z, 0-9 aur _ (3 se 30 characters)" }[usernameState];
+  const hint = { idle: "", checking: "Checking...", ok: "Available", taken: "Not available", invalid: "Only a-z, 0-9 and _ (3 to 30 characters)" }[usernameState];
 
   return (
     <main className="mx-auto max-w-xl p-4 sm:p-6">
-      <h1 className="text-2xl font-semibold">Apna Page banaiye</h1>
+      <h1 className="text-2xl font-semibold">Create your Page</h1>
       <p className="mt-1 text-sm text-stone-500">Step {step + 1} of {STEPS.length}: {STEPS[step]}</p>
       <div className="mt-3 h-1.5 w-full rounded bg-stone-200" aria-hidden="true">
         <div className="h-1.5 rounded bg-emerald-700 transition-all" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
@@ -178,7 +178,7 @@ function NewPageWizardBody() {
         {step === 1 && (
           <>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Page ka naam</span>
+              <span className="mb-1 block text-sm font-medium">Page name</span>
               <input className={input} maxLength={80} value={f.name} onChange={(e) => onName(e.target.value)} />
             </label>
             <label className="block">
@@ -193,12 +193,12 @@ function NewPageWizardBody() {
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Sub-category</span>
               <select className={input} value={f.subcategory} onChange={(e) => set({ subcategory: e.target.value })}>
-                <option value="">Chuniye</option>
+                <option value="">Select</option>
                 {(SUBCATEGORIES[f.category] || []).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Choti bio (optional)</span>
+              <span className="mb-1 block text-sm font-medium">Short bio (optional)</span>
               <textarea className={input} rows={3} maxLength={300} value={f.bio} onChange={(e) => set({ bio: e.target.value })} />
               <span className="mt-1 block text-right text-xs text-stone-500">{f.bio.length}/300</span>
             </label>
@@ -210,7 +210,7 @@ function NewPageWizardBody() {
             <label className="block">
               <span className="mb-1 block text-sm font-medium">State</span>
               <select className={input} value={f.state} onChange={(e) => set({ state: e.target.value, city: "" })}>
-                <option value="">Chuniye</option>
+                <option value="">Select</option>
                 {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
@@ -236,7 +236,7 @@ function NewPageWizardBody() {
               <span className="mb-1 block text-sm font-medium">Cover photo</span>
               <input type="file" accept="image/*" onChange={(e) => set({ cover: e.target.files?.[0] || null })} />
             </label>
-            <p className="text-sm text-stone-500">Har photo max {MAX_IMAGE_MB}MB. Baad mein bhi badal sakte hain.</p>
+            <p className="text-sm text-stone-500">Each photo can be up to {MAX_IMAGE_MB}MB. You can change them later.</p>
           </>
         )}
 
@@ -245,12 +245,12 @@ function NewPageWizardBody() {
             <label className="block">
               <span className="mb-1 block text-sm font-medium">About (optional)</span>
               <textarea className={input} rows={5} maxLength={3000} value={f.about}
-                onChange={(e) => set({ about: e.target.value })} placeholder="Aap kya karte hain, timing, kya milta hai..." />
+                onChange={(e) => set({ about: e.target.value })} placeholder="What you do, opening hours, what you offer..." />
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Phone number (optional)</span>
               <input className={input} inputMode="numeric" value={f.phone} onChange={(e) => set({ phone: e.target.value })} />
-              <span className="mt-1 block text-xs text-stone-500">Number sirf "Show number" dabane par, login kiye hue users ko dikhega.</span>
+              <span className="mt-1 block text-xs text-stone-500">The number is shown only to logged-in users who tap "Show number".</span>
             </label>
           </>
         )}
@@ -265,7 +265,7 @@ function NewPageWizardBody() {
           <button type="button" onClick={next} className="rounded-lg bg-emerald-700 px-5 py-2 text-white">Continue</button>
         ) : (
           <button type="button" onClick={submit} disabled={busy} className="rounded-lg bg-emerald-700 px-5 py-2 text-white disabled:opacity-60">
-            {busy ? "Page ban raha hai..." : "Page banaiye"}
+            {busy ? "Creating page..." : "Create page"}
           </button>
         )}
       </div>

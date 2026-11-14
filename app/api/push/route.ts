@@ -15,7 +15,7 @@ type NotificationRecord = {
   is_read: boolean
 }
 
-// Supabase Database Webhook (notifications table: INSERT aur UPDATE) yahan POST karta hai
+// The Supabase Database Webhook (notifications table: INSERT and UPDATE) POSTs here
 export async function POST(req: Request) {
   if (req.headers.get('x-webhook-secret') !== process.env.PUSH_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? 'mailto:support@milaphub.com', pub, priv)
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } })
 
-  // User ne is category ka push band kiya hai?
+  // Has the user turned off push for this category?
   const { data: t } = await admin.from('notification_types').select('category').eq('type', rec.type).maybeSingle()
   if (t?.category) {
     const { data: pref } = await admin

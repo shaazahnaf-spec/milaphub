@@ -75,7 +75,7 @@ function PagesDirectoryBody() {
         const { rows, more } = await fetchPage(0);
         if (!cancelled) { setItems(rows); setHasMore(more); }
       } catch (e) {
-        if (!cancelled) setError("Pages load nahi ho paye. Dobara koshish kijiye.");
+        if (!cancelled) setError("Could not load pages. Please try again.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,7 +89,7 @@ function PagesDirectoryBody() {
       setItems((prev) => [...prev, ...rows]);
       setHasMore(more);
     } catch {
-      setError("Aur pages load nahi ho paye.");
+      setError("Could not load more pages.");
     }
   }
 
@@ -99,7 +99,7 @@ function PagesDirectoryBody() {
     <main className="mx-auto max-w-2xl p-4 sm:p-6">
       <div className="flex items-center justify-end">
         <Link href="/pages/new" className="rounded-lg bg-emerald-700 px-4 py-2 text-sm text-white">
-          Page banaiye
+          Create a page
         </Link>
       </div>
 
@@ -114,14 +114,14 @@ function PagesDirectoryBody() {
 
       {tab === "discover" && (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <input className={`${field} sm:col-span-2`} placeholder="Naam, @username ya kaam se dhoondhiye (jaise salon, mobile repair)"
+          <input className={`${field} sm:col-span-2`} placeholder="Search by name, @username or service (for example, salon, mobile repair)"
             value={q} onChange={(e) => setQ(e.target.value)} />
           <select className={field} value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Sab categories</option>
+            <option value="">All categories</option>
             {PAGE_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <select className={field} value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="">Poora India</option>
+            <option value="">All of India</option>
             {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <input className={`${field} sm:col-span-2`} placeholder="City ya town (optional)" value={city} onChange={(e) => setCity(e.target.value)} />
@@ -134,26 +134,26 @@ function PagesDirectoryBody() {
 
         {!loading && !error && (tab === "following" || tab === "mine") && !user && (
           <p className="rounded-lg bg-stone-50 p-4">
-            Yeh dekhne ke liye <Link href="/login?next=/pages" className="text-emerald-700 underline">login kijiye</Link>.
+            <Link href="/login" className="text-emerald-700 underline">Log in</Link> to see this.
           </p>
         )}
 
         {!loading && !error && user && items.length === 0 && (
           <p className="rounded-lg bg-stone-50 p-4 text-stone-600">
-            {tab === "following" && "Aap abhi kisi page ko follow nahi kar rahe. Discover mein se kuch chuniye."}
-            {tab === "mine" && "Aapne abhi koi page nahi banaya."}
-            {tab === "discover" && "Is filter par koi page nahi mila. Filter badal ke dekhiye."}
+            {tab === "following" && "You are not following any pages yet. Pick some from Discover."}
+            {tab === "mine" && "You have not created a page yet."}
+            {tab === "discover" && "No pages match these filters. Try changing them."}
           </p>
         )}
         {!loading && !error && !user && tab === "discover" && items.length === 0 && (
-          <p className="rounded-lg bg-stone-50 p-4 text-stone-600">Is filter par koi page nahi mila.</p>
+          <p className="rounded-lg bg-stone-50 p-4 text-stone-600">No pages match these filters.</p>
         )}
 
         {items.map((p) => <PageCard key={p.id} page={p} />)}
 
         {hasMore && !loading && (
           <button onClick={loadMore} className="w-full rounded-lg border border-stone-300 py-2 text-sm">
-            Aur dikhaiye
+            Show more
           </button>
         )}
       </section>

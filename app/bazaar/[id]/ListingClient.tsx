@@ -97,7 +97,7 @@ export default function ListingClient({
     notify(was ? 'Removed from saved items.' : 'Saved. Find it under Saved items.')
   }
 
-  // Chat shuru karo (optionally pehla message chip se)
+  // Start a chat (optionally with a first message from a quick chip)
   async function startChat(firstMessage?: string) {
     if (!listing) return
     if (!me) { router.push('/login'); return }

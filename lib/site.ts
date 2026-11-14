@@ -1,6 +1,6 @@
 // FILE: lib/site.ts
-// Yahan ek baar details bharo, saare legal pages mein apne aap lag jayengi.
-// [Square brackets] wali cheezein company register hone ke baad apni asli details se badalna.
+// Fill in the details once here and they appear on every legal page automatically.
+// Replace anything in [square brackets] with your real details once the company is registered.
 
 export const SITE = {
   brand: 'MilapHub',

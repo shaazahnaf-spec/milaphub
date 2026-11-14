@@ -30,6 +30,13 @@ export default function BazaarClient() {
   const [category, setCategory] = useState('all')
   const [q, setQ] = useState('')
   const [term, setTerm] = useState('')
+  useEffect(() => {
+    // Opened from the home search box: /bazaar?q=...
+    try {
+      const initial = new URLSearchParams(window.location.search).get('q')
+      if (initial) { setQ(initial); setTerm(initial.trim()) }
+    } catch { /* ignore */ }
+  }, [])
   const [items, setItems] = useState<Listing[]>([])
   const [saved, setSaved] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -52,7 +59,7 @@ export default function BazaarClient() {
         } catch { /* storage blocked */ }
         const pick = list.find(c => c.id === chosen) ?? list.find(c => c.name.toLowerCase() === 'hyderabad') ?? list[0]
         if (pick) { setCityId(pick.id); setCityName(pick.name) }
-        else { setLoading(false); setError('City list load nahi ho payi.') }
+        else { setLoading(false); setError('The city list could not be loaded.') }
         return
       }
       const { data } = await supabase

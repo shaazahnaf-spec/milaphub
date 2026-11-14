@@ -69,7 +69,7 @@ export default function NotificationBell() {
       if (!user || cancelled) return
       setMe(user.id)
 
-      // "Tumhare shehar mein nayi listings": 30 minute mein ek baar check
+      // "New listings in your city": checked once every 30 minutes
       const last = Number(sessionStorage.getItem('digestAt') ?? 0)
       if (Date.now() - last > 30 * 60 * 1000) {
         sessionStorage.setItem('digestAt', String(Date.now()))

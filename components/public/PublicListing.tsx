@@ -43,7 +43,7 @@ export default function PublicListing({
             <p className="mt-6 text-sm text-[#5d7776]">Seller: <span className="font-semibold text-[#12302f]">{seller.full_name ?? `@${seller.username}`}</span></p>
           )}
           <p className="mt-4 rounded-lg bg-[#f3f7f6] p-3 text-xs text-[#5d7776]">
-            Safety tip: pehle chat mein baat kijiye, saamne milkar saaman dekhiye aur paise baad mein dijiye.
+            Safety tip: chat first, meet in person to inspect the item, and pay only after you are satisfied.
           </p>
         </section>
       </div>

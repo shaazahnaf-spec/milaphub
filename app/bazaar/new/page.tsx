@@ -1,4 +1,4 @@
-// FILE: app/bazaar/new/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/bazaar/new/page.tsx
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
@@ -100,7 +100,7 @@ export default function NewListing() {
       urls.push(supabase.storage.from('bazaar').getPublicUrl(path).data.publicUrl)
     }
 
-    // Approximate location (sirf ~1 km tak, database mein round hota hai)
+    // Approximate location (rounded to about 1 km in the database)
     const geo = locality.trim() ? await geocode(`${locality.trim()}, ${cityLabel}, India`) : null
 
     const { error } = await supabase.from('listings').insert({

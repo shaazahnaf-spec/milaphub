@@ -1,4 +1,4 @@
-// FILE: app/admin/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/admin/page.tsx
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'

@@ -1,4 +1,4 @@
-// FILE: app/saved/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/saved/page.tsx
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'

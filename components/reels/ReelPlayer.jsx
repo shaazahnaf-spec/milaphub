@@ -11,7 +11,7 @@ export default function ReelPlayer({ videoId, width, height, title }) {
   if (!src) {
     return (
       <div className="mx-auto rounded-xl bg-black/40 p-8 text-center text-sm text-white/70">
-        Video abhi chalane layak nahi hai. Thodi der baad dobara koshish kijiye.
+        This video is not available right now. Please try again in a moment.
       </div>
     );
   }

@@ -1,6 +1,6 @@
-// FILE: lib/image.ts  (GitHub mein is path par paste karo)
+// FILE: lib/image.ts
 
-// Photo ko chhota karta hai: max 1600px, WebP (nahi chale to JPEG). Bada photo ~10 guna halka ho jata hai.
+// Shrinks a photo: max 1600px, WebP (JPEG if WebP is not supported). A large photo becomes about 10 times lighter.
 export async function compressImage(
   file: File,
   maxSide = 1600,
@@ -30,7 +30,7 @@ export async function compressImage(
   return { blob, ext: blob.type === 'image/webp' ? 'webp' : 'jpg' }
 }
 
-// Public URL se storage ka path nikalta hai (delete ke liye)
+// Extracts the storage path from a public URL (used for deleting)
 export function storagePath(url: string | null | undefined): string | null {
   if (!url) return null
   const part = url.split('/object/public/posts/')[1]

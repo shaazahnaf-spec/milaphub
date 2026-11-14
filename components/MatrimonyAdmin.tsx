@@ -77,7 +77,7 @@ export default function MatrimonyAdmin() {
     }
     setItems(out)
 
-    // Gold / Premium chunne wale users
+    // Users who chose Gold / Premium
     const { data: pc } = await supabase
       .from('matrimony_plan_choice')
       .select('user_id, tier, chosen_at, profiles(username, full_name)')
@@ -129,7 +129,7 @@ export default function MatrimonyAdmin() {
       .eq('id', it.id).select('id')
     if (error) return notify(error.message)
     if (!data || data.length === 0) return notify('Could not verify this profile.')
-    // Verify ho gaya: ID proof delete (sirf "verified" ka nishaan rahega)
+    // Verified: the ID proof is deleted (only the "verified" mark remains)
     const paths = it.docs.map(d => d.storage_path)
     if (paths.length) await supabase.storage.from('matrimony-docs').remove(paths)
     await supabase.from('matrimony_documents').delete().eq('user_id', it.user_id)

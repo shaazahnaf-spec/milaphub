@@ -27,7 +27,7 @@ function AdminPagesBody() {
     const { data, error: e } = await supabase.from("page_reports")
       .select(`id,reason,details,status,created_at,pages(id,username,name,is_hidden)`)
       .eq("status", "open").order("created_at", { ascending: true }).limit(100);
-    if (e) setError("Reports load nahi hui."); else setReports(data || []);
+    if (e) setError("Could not load reports."); else setReports(data || []);
   }, []);
 
   const loadPages = useCallback(async () => {
@@ -35,7 +35,7 @@ function AdminPagesBody() {
     const term = cleanSearch(q);
     if (term) query = query.or(`name.ilike.%${term}%,username.ilike.%${term}%`);
     const { data, error: e } = await query;
-    if (e) setError("Pages load nahi hue."); else setPages(data || []);
+    if (e) setError("Could not load pages."); else setPages(data || []);
   }, [q]);
 
   useEffect(() => { if (ok) loadReports(); }, [ok, loadReports]);
@@ -48,25 +48,25 @@ function AdminPagesBody() {
   async function patchPage(id, patch) {
     setError("");
     const { error: e } = await supabase.from("pages").update(patch).eq("id", id);
-    if (e) return setError("Update nahi hua.");
+    if (e) return setError("Update failed.");
     loadPages(); loadReports();
   }
 
   async function deletePage(p) {
-    if (!confirm(`@${p.username} ko hamesha ke liye delete karein? Uski saari posts bhi hat jayengi.`)) return;
+    if (!confirm(`Permanently delete @${p.username}? All of its posts will be removed too.`)) return;
     const { error: e } = await supabase.from("pages").delete().eq("id", p.id);
-    if (e) return setError("Delete nahi hua.");
+    if (e) return setError("Delete failed.");
     loadPages(); loadReports();
   }
 
   async function resolve(id) {
     const { error: e } = await supabase.from("page_reports").update({ status: "resolved" }).eq("id", id);
-    if (e) return setError("Report resolve nahi hui.");
+    if (e) return setError("Could not resolve the report.");
     setReports((r) => r.filter((x) => x.id !== id));
   }
 
   if (ok === null) return <p className="p-6 text-stone-500">Loading...</p>;
-  if (!ok) return <p className="p-6">Yeh page sirf admins ke liye hai.</p>;
+  if (!ok) return <p className="p-6">This page is for admins only.</p>;
 
   const btn = "rounded-lg border border-stone-300 px-3 py-1.5 text-sm";
 
@@ -74,7 +74,7 @@ function AdminPagesBody() {
     <main className="mx-auto max-w-3xl p-4 sm:p-6">
       <h1 className="text-2xl font-semibold">Pages admin</h1>
       <p className="mt-1 text-sm text-stone-500">
-        "Verified Local" tabhi dijiye jab dukaan ka proof dekha ho (dukaan ki photo, GST, ya NGO ka 12A/80G).
+        Only give the "Verified Local" badge after you have seen proof of the business (a photo of the shop, GST registration, or an NGO's 12A/80G certificate).
       </p>
 
       <div role="tablist" className="mt-4 flex gap-1 border-b border-stone-200">
@@ -88,14 +88,14 @@ function AdminPagesBody() {
 
       {tab === "reports" && (
         <section className="mt-4 space-y-3">
-          {reports.length === 0 && <p className="rounded-lg bg-stone-50 p-4 text-stone-600">Koi open report nahi hai.</p>}
+          {reports.length === 0 && <p className="rounded-lg bg-stone-50 p-4 text-stone-600">There are no open reports.</p>}
           {reports.map((r) => (
             <article key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   {r.pages
                     ? <Link href={`/pages/${r.pages.username}`} className="font-medium text-emerald-700 underline">{r.pages.name} (@{r.pages.username})</Link>
-                    : <span className="text-stone-500">Page hat chuka hai</span>}
+                    : <span className="text-stone-500">This page has been deleted</span>}
                   <div className="text-sm text-stone-600">Wajah: {r.reason}</div>
                 </div>
                 <div className="flex gap-2">
@@ -115,7 +115,7 @@ function AdminPagesBody() {
 
       {tab === "pages" && (
         <section className="mt-4 space-y-3">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Naam ya @username dhoondhiye"
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or @username"
             className="w-full rounded-lg border border-stone-300 px-3 py-2" />
           {pages.map((p) => (
             <article key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white p-4">

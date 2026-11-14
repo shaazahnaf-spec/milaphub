@@ -16,7 +16,7 @@ export const CATEGORIES = [
 export const categoryLabel = (id: string) => CATEGORIES.find(c => c.id === id)?.label ?? id
 export const inr = (n: number) => (n === 0 ? 'Free' : `₹${n.toLocaleString('en-IN')}`)
 
-// Sell listing mein price, Wanted listing mein budget
+// Price for a Sell listing, budget for a Wanted listing
 export const priceLabel = (type: string, price: number) =>
   type === 'wanted'
     ? price === 0 ? 'Open budget' : `Budget ₹${price.toLocaleString('en-IN')}`
@@ -54,13 +54,13 @@ export type Listing = {
 export const one = <T,>(v: T | T[] | null | undefined): T | null =>
   Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
-// Public URL se storage path (photo delete ke liye)
+// Storage path from a public URL (used when deleting a photo)
 export function bazaarPath(url: string): string | null {
   const part = url.split('/object/public/bazaar/')[1]
   return part ? decodeURIComponent(part.split('?')[0]) : null
 }
 
-// Locality ka approximate coordinate (OpenStreetMap Nominatim, free). Database mein ~1 km tak round hota hai.
+// Approximate coordinates of a locality (OpenStreetMap Nominatim, free). Rounded to about 1 km in the database.
 export async function geocode(query: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const res = await fetch(

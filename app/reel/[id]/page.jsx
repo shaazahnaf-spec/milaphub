@@ -45,10 +45,10 @@ const getReel = cache(async (id) => {
 export async function generateMetadata({ params }) {
   const { id } = await params;
   const reel = await getReel(id);
-  if (!reel) return { title: "Reel nahi mili | MilapHub", robots: { index: false } };
+  if (!reel) return { title: "Reel not found | MilapHub", robots: { index: false } };
 
   const title = reel.title;
-  const description = (reel.description || "MilapHub par yeh video dekhiye.").slice(0, 200);
+  const description = (reel.description || "Watch this video on MilapHub.").slice(0, 200);
   const url = `${SITE_URL}/reel/${reel.id}`;
   const image = thumbnailUrl(reel.bunny_video_id);
 
@@ -86,7 +86,7 @@ export default async function ReelPage({ params }) {
     <main className="min-h-screen bg-[#0b1514] pb-32 text-white">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <Link href="/" className="text-lg font-extrabold text-white">MilapHub</Link>
-        <Link href="/reels" className="text-sm text-white/70 hover:text-white">Aur reels</Link>
+        <Link href="/reels" className="text-sm text-white/70 hover:text-white">More reels</Link>
       </header>
 
       <section className="mx-auto max-w-5xl px-3">

@@ -94,7 +94,7 @@ export default function PostActions({ postId, user }) {
 
   async function removeComment(id) {
     const { data, error } = await supabase.from("post_comments").delete().eq("id", id).select("id");
-    if (error || !data?.length) return setNote(error?.message || "Comment delete nahi hua.");
+    if (error || !data?.length) return setNote(error?.message || "Could not delete the comment.");
     setComments((c) => (c || []).filter((x) => x.id !== id && x.parent_id !== id));
     setCommentCount((n) => Math.max(0, n - 1));
   }
@@ -106,8 +106,8 @@ export default function PostActions({ postId, user }) {
       .insert({ post_id: postId, reporter_id: uid, reason, details: details.trim() || null });
     setBusy(false);
     setReporting(false); setDetails(""); setReason("spam");
-    setNote(error ? (error.code === "23505" ? "Aap is post ki report pehle hi kar chuke hain." : error.message)
-                  : "Shukriya. Hamari team is post ko dekhegi.");
+    setNote(error ? (error.code === "23505" ? "You have already reported this post." : error.message)
+                  : "Thank you. Our team will review this post.");
   }
 
   const btn = "rounded-lg px-2 py-1 text-sm hover:bg-stone-100";
@@ -132,7 +132,7 @@ export default function PostActions({ postId, user }) {
       {open && (
         <div className="mt-2 space-y-2">
           {comments === null && <p className="text-sm text-stone-500">Loading...</p>}
-          {comments?.length === 0 && <p className="text-sm text-stone-500">Abhi koi comment nahi.</p>}
+          {comments?.length === 0 && <p className="text-sm text-stone-500">No comments yet.</p>}
           {comments?.map((c) => (
             <div key={c.id} className={`rounded-lg bg-stone-50 p-2 text-sm ${c.parent_id ? "ml-6" : ""}`}>
               <div className="flex items-center justify-between text-xs text-stone-500">
@@ -148,19 +148,19 @@ export default function PostActions({ postId, user }) {
             </div>
           ))}
           <div className="flex gap-2">
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Comment likhiye..."
+            <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={1000} placeholder="Write a comment..."
               className="min-w-0 flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-700" />
             <button type="button" onClick={addComment} disabled={busy || !draft.trim()}
-              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white disabled:opacity-50">Bhejiye</button>
+              className="rounded-lg bg-emerald-700 px-3 py-2 text-sm text-white disabled:opacity-50">Post</button>
           </div>
         </div>
       )}
 
       {reporting && (
-        <div role="dialog" aria-modal="true" aria-label="Post report karein"
+        <div role="dialog" aria-modal="true" aria-label="Report this post"
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
           <div className="w-full max-w-md rounded-xl bg-white p-5">
-            <h2 className="text-lg font-semibold">Post report karein</h2>
+            <h2 className="text-lg font-semibold">Report this post</h2>
             <div className="mt-3 space-y-2">
               {REASONS.map(([id, label]) => (
                 <label key={id} className="flex items-center gap-2 text-sm">
@@ -170,10 +170,10 @@ export default function PostActions({ postId, user }) {
               ))}
             </div>
             <textarea value={details} onChange={(e) => setDetails(e.target.value)} maxLength={500} rows={3}
-              placeholder="Aur batayiye (optional)" className="mt-3 w-full rounded-lg border border-stone-300 p-3 text-sm" />
+              placeholder="Tell us more (optional)" className="mt-3 w-full rounded-lg border border-stone-300 p-3 text-sm" />
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => setReporting(false)} className="rounded-lg border border-stone-300 px-4 py-2">Cancel</button>
-              <button type="button" onClick={sendReport} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-white disabled:opacity-60">Report bhejiye</button>
+              <button type="button" onClick={sendReport} disabled={busy} className="rounded-lg bg-red-600 px-4 py-2 text-white disabled:opacity-60">Submit report</button>
             </div>
           </div>
         </div>

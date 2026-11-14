@@ -33,9 +33,9 @@ export default function Onboarding() {
     e.preventDefault()
     setError('')
     if (!/^[a-z0-9_]{3,20}$/.test(username))
-      return setError('Username 3-20 characters ka ho: sirf small letters, numbers ya underscore.')
-    if (!state) return setError('Apna state chuno.')
-    if (city.trim().length < 2) return setError('Apna city likho.')
+      return setError('Username must be 3-20 characters: lowercase letters, numbers or underscore only.')
+    if (!state) return setError('Please choose your state.')
+    if (city.trim().length < 2) return setError('Please enter your city.')
     setBusy(true)
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -51,7 +51,7 @@ export default function Onboarding() {
       city_id: cityId as number, area: area.trim() || null,
     })
     setBusy(false)
-    if (error) return setError(error.code === '23505' ? 'Ye username pehle se liya hua hai.' : error.message)
+    if (error) return setError(error.code === '23505' ? 'That username is already taken.' : error.message)
     router.replace('/home')
     router.refresh()
   }
@@ -60,22 +60,22 @@ export default function Onboarding() {
   return (
     <main className="grid min-h-screen place-items-center bg-[#eef3f2] p-4">
       <form onSubmit={save} className="w-full max-w-sm space-y-3 rounded-2xl border border-[#dbe5e4] bg-white p-8">
-        <h1 className="text-xl font-bold text-[#12302f]">Apna profile banao</h1>
-        <p className="mb-2 text-sm text-[#5d7776]">Ye 30 second ka kaam hai.</p>
-        <input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Poora naam" className={input} />
+        <h1 className="text-xl font-bold text-[#12302f]">Set up your profile</h1>
+        <p className="mb-2 text-sm text-[#5d7776]">This takes about 30 seconds.</p>
+        <input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Full name" className={input} />
         <input required value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="username" className={input} />
         <select required value={state} onChange={e => setState(e.target.value)} className={input} aria-label="State">
-          <option value="">State chuno</option>
+          <option value="">Select your state</option>
           {STATES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <input required value={city} onChange={e => setCity(e.target.value)} list="city-list"
-          placeholder="City likho (jaise Hyderabad)" className={input} />
+          placeholder="City (for example, Hyderabad)" className={input} />
         <datalist id="city-list">
           {suggestions.map(n => <option key={n} value={n} />)}
         </datalist>
         <input value={area} onChange={e => setArea(e.target.value)} placeholder="Locality / area (optional)" className={input} />
         <button disabled={busy} className="w-full rounded-lg bg-[#0f5c5a] py-3 font-bold text-white disabled:opacity-60">
-          {busy ? 'Save ho raha hai...' : 'Save and continue'}
+          {busy ? 'Saving...' : 'Save and continue'}
         </button>
         {error && <p role="alert" className="text-sm text-[#c0392b]">{error}</p>}
       </form>

@@ -8,7 +8,7 @@ import { thumbnailUrl } from "@/lib/reels/bunny";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Reels | MilapHub",
-  description: "MilapHub par chhote aur lambe videos dekhiye.",
+  description: "Watch short and long videos on MilapHub.",
 };
 
 function fmt(seconds) {
@@ -38,14 +38,14 @@ export default async function ReelsPage() {
       <main className="mx-auto max-w-5xl p-4">
         <div className="flex justify-end">
           <Link href="/reels/upload" className="rounded-full bg-[#0f5c5a] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0c4a48]">
-            Reel upload karein
+            Upload a reel
           </Link>
         </div>
 
-        {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Reels load nahi ho payi.</p>}
+        {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">Could not load reels.</p>}
         {!error && reels.length === 0 && (
           <p className="mt-6 rounded-xl bg-[#f3f7f6] p-6 text-center text-[#12302f]">
-            Abhi koi reel nahi hai. Pehli reel aap upload kijiye.
+            There are no reels yet. Upload the first one.
           </p>
         )}
 

@@ -1,4 +1,4 @@
-// FILE: app/home/page.tsx  (GitHub mein is path par paste karo)
+// FILE: app/home/page.tsx
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -171,6 +171,8 @@ export default function HomePage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('Home')
+  const [showPeople, setShowPeople] = useState(false)
+  const [globalQ, setGlobalQ] = useState('')
   const [category, setCategory] = useState('all')
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -277,7 +279,7 @@ export default function HomePage() {
       .then(({ data }) => setSaved(new Set((data ?? []).map(r => r.post_id as string))))
   }, [supabase, profile])
 
-  // Ads: 3 slots (left_1, right_1, right_2), har slot mein slideshow, apne city ya poore India ke liye
+  // Ads: 3 slots (left_1, right_1, right_2), each a slideshow, for the user's city or all of India
   useEffect(() => {
     if (!profile?.city_id) return
     supabase
@@ -288,7 +290,7 @@ export default function HomePage() {
         const rows = (data ?? []) as Ad[]
         const map: Record<string, Ad[]> = {}
         for (const slot of ['left_1', 'right_1', 'right_2']) {
-          // Har slot mein max 5 ads slideshow ki tarah ghoomte hain (order random)
+          // Each slot rotates up to 5 ads as a slideshow (random order)
           const list = rows.filter(r => r.slot === slot).sort(() => Math.random() - 0.5).slice(0, 5)
           if (list.length) map[slot] = list
         }
@@ -548,6 +550,13 @@ export default function HomePage() {
     else setTab(t)
   }
 
+  // Header / phone search: opens Bazaar with the search term
+  function runSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const t = globalQ.trim()
+    if (t) router.push(`/bazaar?q=${encodeURIComponent(t)}`)
+  }
+
   const renderComment = (p: Post, c: Comment, isReply: boolean) => {
     const ca = one(c.profiles)
     const cname = ca?.full_name ?? 'MilapHub user'
@@ -605,12 +614,16 @@ export default function HomePage() {
         <div className="mx-auto grid h-16 max-w-[1280px] grid-cols-[1fr_auto] items-center gap-4 px-4 md:grid-cols-[1fr_auto_1fr]">
           <div className="flex items-center gap-4">
             <Logo />
-            <input
-              type="search"
-              placeholder="Search MilapHub"
-              aria-label="Search"
-              className="hidden w-56 rounded-full bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30 lg:block"
-            />
+            <form onSubmit={runSearch} role="search" className="hidden lg:block">
+              <input
+                type="search"
+                value={globalQ}
+                onChange={e => setGlobalQ(e.target.value)}
+                placeholder="Search Bazaar"
+                aria-label="Search Bazaar"
+                className="w-56 rounded-full bg-[#f3f7f6] px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+              />
+            </form>
           </div>
 
           <nav className="hidden h-full md:flex" aria-label="Main">
@@ -762,8 +775,26 @@ export default function HomePage() {
             </div>
           ) : (
             <>
-              {/* Services (phones only: the left sidebar is hidden below lg) */}
+              {/* Phones only: the left and right sidebars are hidden below lg, so search, services and friends live here */}
+              <form onSubmit={runSearch} role="search" className="lg:hidden">
+                <input
+                  type="search"
+                  value={globalQ}
+                  onChange={e => setGlobalQ(e.target.value)}
+                  placeholder="Search Bazaar"
+                  aria-label="Search Bazaar"
+                  className="w-full rounded-full border border-[#dbe5e4] bg-[#f3f7f6] px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#0f5c5a]/30"
+                />
+              </form>
               <nav aria-label="Services" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowPeople(v => !v)}
+                  aria-expanded={showPeople}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold ${showPeople ? 'border-[#0f5c5a] bg-[#0f5c5a] text-white' : 'border-[#dbe5e4] bg-[#f3f7f6] text-[#12302f] hover:bg-[#e3efee]'}`}
+                >
+                  Find friends
+                </button>
                 {[
                   ['Friends', '/messages'], ['Reels', '/reels'], ['Bazaar', '/bazaar'],
                   ['Pages', '/pages'], ['Matrimony', '/matrimony'], ['Saved posts', '/saved'],
@@ -774,6 +805,11 @@ export default function HomePage() {
                   </Link>
                 ))}
               </nav>
+              {showPeople && (
+                <div className="space-y-3 lg:hidden">
+                  <FriendsPanel me={profile.id} onOpenChat={id => router.push(`/messages?with=${id}`)} />
+                </div>
+              )}
 
               {/* Stories */}
               <section aria-label="Stories" className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

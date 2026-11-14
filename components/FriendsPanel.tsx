@@ -1,4 +1,4 @@
-// FILE: components/FriendsPanel.tsx  (GitHub mein is path par paste karo)
+// FILE: components/FriendsPanel.tsx
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'

@@ -1,5 +1,5 @@
 // FILE: lib/matrimony.ts
-// Abhi sirf Muslim Matrimony. Doosri community add karte waqt yahan ki lists badhani hain.
+// Currently Muslim Matrimony only. Extend these lists when adding another community.
 
 export const MASLAKS = [
   'Sunni (Barelvi)',
@@ -47,7 +47,7 @@ export const DOC_TYPES = [
 
 export const HEIGHTS = Array.from({ length: 91 }, (_, i) => 140 + i)
 
-// Teeno plan mein 20 unlocks / mahina. Beta mein sab free "normal" par.
+// All three plans include 20 unlocks per month. During beta everyone starts free on "normal".
 export const TIERS = [
   {
     id: 'normal', name: 'Normal', price: '₹299 a month',
@@ -63,7 +63,7 @@ export const TIERS = [
   },
 ]
 
-// Kis tier ke user ko kaise brand ke ads dikhein
+// Which brands' ads each tier of user sees
 export const tierToAudience = (tier: string) =>
   tier === 'premium' ? 'luxury' : tier === 'gold' ? 'mid' : 'general'
 
@@ -92,7 +92,7 @@ export function ageFromDob(dob: string): number {
   return age
 }
 
-// Bahut chhota (24 px) dhundhla version, jisme chehra pehchana nahi ja sakta
+// A tiny (24 px) blurred version in which the face cannot be recognised
 export async function makeBlurThumb(blob: Blob): Promise<string> {
   const bmp = await createImageBitmap(blob)
   const w = 24

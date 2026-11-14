@@ -3,7 +3,7 @@
 
 import AdSlot, { type Ad } from '@/components/AdSlot'
 
-// Matrimony ke har page par exactly 4 ad columns (layout kabhi nahi badalta)
+// Exactly 4 ad columns on every Matrimony page (the layout never changes)
 export default function AdColumns({ ads, cityName }: { ads: Record<string, Ad[]>; cityName: string }) {
   return (
     <section aria-label="Sponsored">

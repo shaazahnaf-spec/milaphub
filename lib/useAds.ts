@@ -9,7 +9,7 @@ type Client = ReturnType<typeof createClient>
 
 export const BAZAAR_SLOTS = ['bazaar_top', 'bazaar_grid', 'bazaar_side_left', 'bazaar_side_right']
 
-// Apne shehar (ya poore India) ke live ads laata hai, har slot mein max 5, order random
+// Fetches live ads for the user's city (or all of India), up to 5 per slot, in random order
 export function useAds(supabase: Client, slots: string[], audience?: string) {
   const [ads, setAds] = useState<Record<string, Ad[]>>({})
   const [cityName, setCityName] = useState('your city')

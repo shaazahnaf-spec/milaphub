@@ -31,8 +31,8 @@ function UploadBody() {
     setError("");
     setMeta(null);
     if (!f) return setFile(null);
-    if (!f.type.startsWith("video/")) { setFile(null); return setError("Sirf video file chuniye."); }
-    if (f.size > MAX_REEL_MB * 1024 * 1024) { setFile(null); return setError(`Video ${MAX_REEL_MB}MB se chhota hona chahiye.`); }
+    if (!f.type.startsWith("video/")) { setFile(null); return setError("Please choose a video file."); }
+    if (f.size > MAX_REEL_MB * 1024 * 1024) { setFile(null); return setError(`The video must be smaller than ${MAX_REEL_MB}MB.`); }
     setFile(f);
     if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, "").slice(0, 100));
     setMeta(await readVideoMeta(f));
@@ -40,14 +40,14 @@ function UploadBody() {
 
   async function submit() {
     setError("");
-    if (!file) return setError("Pehle video chuniye.");
-    if (title.trim().length < 2) return setError("Title kam se kam 2 akshar ka ho.");
+    if (!file) return setError("Please choose a video first.");
+    if (title.trim().length < 2) return setError("The title must be at least 2 characters.");
     setBusy(true);
     setProgress(0);
     try {
       const { data: s } = await supabase.auth.getSession();
       const token = s?.session?.access_token;
-      if (!token) throw new Error("Login ka session expire ho gaya. Dobara login kijiye.");
+      if (!token) throw new Error("Your session has expired. Please log in again.");
 
       const { reelId } = await uploadReel({
         file, title: title.trim(), description: description.trim(), meta,
@@ -56,10 +56,10 @@ function UploadBody() {
 
       // The whole file reached Bunny: now make the reel public.
       const { error: updateError } = await supabase.from("reels").update({ upload_state: "ready" }).eq("id", reelId);
-      if (updateError) throw new Error("Video upload ho gaya par reel publish nahi ho payi. Dobara koshish kijiye.");
+      if (updateError) throw new Error("The video was uploaded but the reel could not be published. Please try again.");
       router.push(`/reel/${reelId}`);
     } catch (e) {
-      setError(e.message || "Upload nahi ho paya.");
+      setError(e.message || "Upload failed.");
       setBusy(false);
       setProgress(null);
     }
@@ -70,7 +70,7 @@ function UploadBody() {
   if (!user) {
     return (
       <main className="mx-auto max-w-xl p-6">
-        <h2 className="text-xl font-semibold text-[#12302f]">Reel upload karne ke liye login kijiye</h2>
+        <h2 className="text-xl font-semibold text-[#12302f]">Log in to upload a reel</h2>
         <Link href="/login" className="mt-4 inline-block rounded-full bg-[#0f5c5a] px-5 py-2 text-white">Login</Link>
       </main>
     );
@@ -78,7 +78,7 @@ function UploadBody() {
 
   const input = "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 outline-none focus:border-[#0f5c5a] focus:ring-2 focus:ring-[#0f5c5a]/20";
   const shape = meta?.width && meta?.height
-    ? (meta.height > meta.width ? "Vertical (9:16 jaisi)" : "Widescreen")
+    ? (meta.height > meta.width ? "Vertical (9:16)" : "Widescreen")
     : null;
 
   return (
@@ -88,8 +88,8 @@ function UploadBody() {
           <span className="mb-1 block text-sm font-medium">Video file</span>
           <input type="file" accept="video/*" onChange={onFile} disabled={busy} />
           <span className="mt-1 block text-xs text-stone-500">
-            Max {MAX_REEL_MB}MB. Lambi videos bhi chalti hain, file seedha Bunny ko jaati hai.
-            {shape && ` Pehchaana gaya: ${shape}.`}
+            Max {MAX_REEL_MB}MB. Long videos are fine; the file goes straight to our video host.
+            {shape && ` Detected: ${shape}.`}
           </span>
         </label>
 
@@ -109,7 +109,7 @@ function UploadBody() {
             <div className="h-2 w-full rounded bg-stone-200">
               <div className="h-2 rounded bg-[#0f5c5a] transition-all" style={{ width: `${progress}%` }} />
             </div>
-            <p className="mt-1 text-xs text-stone-500">Upload ho raha hai: {progress}%. Page band mat kijiye.</p>
+            <p className="mt-1 text-xs text-stone-500">Uploading: {progress}%. Please keep this page open.</p>
           </div>
         )}
 
@@ -117,9 +117,9 @@ function UploadBody() {
 
         <button type="button" onClick={submit} disabled={busy || !file}
           className="rounded-full bg-[#0f5c5a] px-6 py-2.5 font-semibold text-white hover:bg-[#0c4a48] disabled:opacity-50">
-          {busy ? "Upload ho raha hai..." : "Reel publish karein"}
+          {busy ? "Uploading..." : "Publish reel"}
         </button>
-        <p className="text-xs text-stone-500">Upload ke baad video ko process hone mein thoda time lag sakta hai. Tab tak player "processing" dikha sakta hai.</p>
+        <p className="text-xs text-stone-500">After uploading, the video may take a little while to process. Until then the player may show "processing".</p>
       </div>
     </main>
   );
